@@ -18,3 +18,15 @@ ArthasClaw 是一个基于 Arthas 的 JVM 诊断工具，通过自然语言交�
 
 ## 快速开始
 
+### 一键安装启动
+
+```bash
+curl -sL https://raw.githubusercontent.com/JiajunBernoulli/ArthasClaw/main/start.sh | sh
+```
+
+脚本会自动：
+1. 从 Maven Central 下载 JAR
+2. 检查 OpenAI 环境变量，缺失时提示输入
+3. 列出可选的 Java 进程供选择
+4. 启动 ArthasClaw 并连接目标进程
+

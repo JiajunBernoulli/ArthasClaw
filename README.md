@@ -10,6 +10,20 @@ JVM diagnostic assistant with natural language interface, powered by Arthas.
 
 ## Quickstart
 
+### One-line Install & Run
+
+```bash
+curl -sL https://raw.githubusercontent.com/JiajunBernoulli/ArthasClaw/main/start.sh | sh
+```
+
+This will:
+1. Download the JAR from Maven Central
+2. Prompt for OpenAI environment variables if not set
+3. List available Java processes for selection
+4. Start ArthasClaw with the selected PID
+
+### Manual Build
+
 ### 1. Build the Project
 
 ```bash
