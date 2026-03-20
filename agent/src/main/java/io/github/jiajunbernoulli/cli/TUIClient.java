@@ -85,24 +85,13 @@ public class TUIClient {
             return value;
         }
 
-        // Fallback: try to read from /dev/tty (Unix/Linux/macOS)
-        try {
-            ProcessBuilder pb = new ProcessBuilder("bash", "-c", "read " + (isSecret ? "-s" : "") + " -r line; echo \"$line\"");
-            pb.redirectInput(new java.io.File("/dev/tty"));
-            pb.redirectErrorStream(true);
-            Process process = pb.start();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            value = reader.readLine();
-            reader.close();
-            process.waitFor();
-            return value;
-        } catch (Exception e) {
-            // /dev/tty not available (e.g., Windows, or no terminal)
-            System.err.println();
-            System.err.println("[-] Cannot read from terminal. Please set environment variable: " + envName);
-            System.err.println("    Example: export " + envName + "=your_value");
-            return null;
-        }
+        // No console available - require environment variable
+        System.err.println();
+        System.err.println("[-] Cannot read from terminal. Please set environment variable: " + envName);
+        System.err.println("    Example: export " + envName + "=your_value");
+        System.err.println("    Or run via: curl -sL https://raw.githubusercontent.com/JiajunBernoulli/ArthasClaw/main/start.sh | bash");
+        System.exit(1);
+        return null;
     }
 
     /**
@@ -256,7 +245,7 @@ public class TUIClient {
 
     private void printHelp() {
         System.out.println();
-        System.out.println(CYAN + "════════════════════════════════════════════════════════" + RESET);
+        System.out.println(CYAN + "════════════════════════════════════════════════���═══════" + RESET);
         System.out.println(CYAN + "                      Help                               " + RESET);
         System.out.println(CYAN + "════════════════════════════════════════════════════════" + RESET);
         System.out.println();
