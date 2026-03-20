@@ -57,9 +57,30 @@ public class OpenAICompletionProvider implements CompletionProvider {
 
     @Override
     public ObjectNode chatCompletion(ArrayNode messages, ArrayNode toolsConfig) throws IOException {
+        // Validate messages before sending to LLM
+        if (messages == null || messages.size() == 0) {
+            throw new IllegalArgumentException("Messages cannot be null or empty");
+        }
+
+        // Filter out invalid messages (null content)
+        ArrayNode validMessages = mapper.createArrayNode();
+        for (JsonNode msg : messages) {
+            if (msg.hasNonNull("content") && !msg.get("content").asText().trim().isEmpty()) {
+                validMessages.add(msg);
+            } else if (msg.has("role") && "system".equals(msg.get("role").asText())) {
+                // Keep system messages even if content is empty
+                validMessages.add(msg);
+            }
+            // Skip messages with null/empty content (non-system)
+        }
+
+        if (validMessages.size() == 0) {
+            throw new IllegalArgumentException("No valid messages to send (all content is null or empty)");
+        }
+
         ObjectNode requestBody = mapper.createObjectNode();
         requestBody.put("model", model);
-        requestBody.set("messages", messages);
+        requestBody.set("messages", validMessages);
 
         if (toolsConfig != null && toolsConfig.size() > 0) {
             requestBody.set("tools", toolsConfig);
