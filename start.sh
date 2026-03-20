@@ -14,7 +14,7 @@ echo ""
 
 # 1. Download JAR if not exists
 if [ ! -f "$JAR_PATH" ]; then
-    echo "[1/2] Downloading ArthasClaw..."
+    echo "[1/3] Downloading ArthasClaw..."
     curl -L -o "$JAR_PATH" "$JAR_URL"
     if [ $? -ne 0 ]; then
         echo "[-] Download failed"
@@ -22,12 +22,50 @@ if [ ! -f "$JAR_PATH" ]; then
     fi
     echo "[+] Download complete: $JAR_PATH"
 else
-    echo "[1/2] JAR already exists, skipping download"
+    echo "[1/3] JAR already exists, skipping download"
 fi
 
-# 2. List Java processes for user selection
+# 2. Configure OpenAI API (prompt if not set)
 echo ""
-echo "[2/2] Select target Java process..."
+echo "[2/3] Configure OpenAI API..."
+
+if [ -z "$OPENAI_API_KEY" ]; then
+    echo ""
+    echo "OPENAI_API_KEY is not set."
+    printf "Enter OPENAI_API_KEY: "
+    read -r API_KEY_INPUT
+    export OPENAI_API_KEY="$API_KEY_INPUT"
+else
+    echo "[+] OPENAI_API_KEY already set"
+fi
+
+if [ -z "$OPENAI_BASE_URL" ]; then
+    printf "Enter OPENAI_BASE_URL (press Enter for default: https://api.openai.com/v1): "
+    read -r BASE_URL_INPUT
+    if [ -n "$BASE_URL_INPUT" ]; then
+        export OPENAI_BASE_URL="$BASE_URL_INPUT"
+    else
+        export OPENAI_BASE_URL="https://api.openai.com/v1"
+    fi
+else
+    echo "[+] OPENAI_BASE_URL already set: $OPENAI_BASE_URL"
+fi
+
+if [ -z "$OPENAI_MODEL" ]; then
+    printf "Enter OPENAI_MODEL (press Enter for default: gpt-4o-mini): "
+    read -r MODEL_INPUT
+    if [ -n "$MODEL_INPUT" ]; then
+        export OPENAI_MODEL="$MODEL_INPUT"
+    else
+        export OPENAI_MODEL="gpt-4o-mini"
+    fi
+else
+    echo "[+] OPENAI_MODEL already set: $OPENAI_MODEL"
+fi
+
+# 3. List Java processes for user selection
+echo ""
+echo "[3/3] Select target Java process..."
 
 # Get Java process list
 JAVA_PIDS=$(ps -eo pid,comm | grep java | awk '{print $1}')
@@ -64,7 +102,7 @@ if [ "$JAVA_COUNT" -eq 1 ]; then
 else
     echo ""
     printf "Enter process number [1-%d]: " "$JAVA_COUNT"
-    read -r SELECTION < /dev/tty
+    read -r SELECTION
     
     if ! [[ "$SELECTION" =~ ^[0-9]+$ ]] || [ "$SELECTION" -lt 1 ] || [ "$SELECTION" -gt "$JAVA_COUNT" ]; then
         echo "[-] Invalid selection"
@@ -75,14 +113,13 @@ else
     echo "[+] Selected PID: $SELECTED_PID"
 fi
 
-# 3. Start ArthasClaw
+# 4. Start ArthasClaw
 echo ""
 echo "Starting ArthasClaw..."
 echo "=========================================="
 echo ""
 
 # Start jar with PID and optional question
-# OpenAI config will be prompted interactively in Java (cross-platform compatible)
 QUESTION="${1:-}"
 if [ -n "$QUESTION" ]; then
     java -jar "$JAR_PATH" "$SELECTED_PID" "$QUESTION"
