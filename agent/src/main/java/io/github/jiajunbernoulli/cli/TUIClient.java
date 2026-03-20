@@ -74,26 +74,35 @@ public class TUIClient {
         System.out.print(prompt);
         java.io.Console console = System.console();
 
-        if (console == null) {
-            // Fallback for non-interactive environments (e.g., IDE, piped input)
-            try {
-                BufferedReader fallbackReader = new BufferedReader(new InputStreamReader(System.in));
-                value = fallbackReader.readLine();
-            } catch (IOException e) {
-                System.err.println("[-] Failed to read input: " + e.getMessage());
-                return null;
-            }
-        } else {
+        if (console != null) {
+            // Standard console available
             if (isSecret) {
-                // Hide input for sensitive data
                 char[] chars = console.readPassword();
                 value = chars != null ? new String(chars) : null;
             } else {
                 value = console.readLine();
             }
+            return value;
         }
 
-        return value;
+        // Fallback: try to read from /dev/tty (Unix/Linux/macOS)
+        try {
+            ProcessBuilder pb = new ProcessBuilder("bash", "-c", "read " + (isSecret ? "-s" : "") + " -r line; echo \"$line\"");
+            pb.redirectInput(new java.io.File("/dev/tty"));
+            pb.redirectErrorStream(true);
+            Process process = pb.start();
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            value = reader.readLine();
+            reader.close();
+            process.waitFor();
+            return value;
+        } catch (Exception e) {
+            // /dev/tty not available (e.g., Windows, or no terminal)
+            System.err.println();
+            System.err.println("[-] Cannot read from terminal. Please set environment variable: " + envName);
+            System.err.println("    Example: export " + envName + "=your_value");
+            return null;
+        }
     }
 
     /**
