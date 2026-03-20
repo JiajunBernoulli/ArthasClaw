@@ -232,12 +232,12 @@ class TUIClientTest {
         // Mock chatCompletion to return a response (allow null toolsConfig)
         ObjectNode mockResponse = mapper.createObjectNode();
         mockResponse.put("role", "assistant");
-        mockResponse.put("content", "这是一个测试回复");
+        mockResponse.put("content", "This is a test response");
         lenient().when(mockProvider.chatCompletion(any(ArrayNode.class), any()))
                 .thenReturn(mockResponse);
 
         // Process natural language input
-        assertDoesNotThrow(() -> tuiClient.processCommand("MathGame有哪些方法"));
+        assertDoesNotThrow(() -> tuiClient.processCommand("What methods does MathGame have?"));
     }
 
     @Test
@@ -248,15 +248,15 @@ class TUIClientTest {
     }
 
     @Test
-    @DisplayName("Chinese natural language query")
-    void testChineseNaturalLanguageQuery() throws Exception {
+    @DisplayName("Natural language thread status query")
+    void testThreadStatusQuery() throws Exception {
         ObjectNode mockResponse = mapper.createObjectNode();
         mockResponse.put("role", "assistant");
-        mockResponse.put("content", "正在分析线程状态...");
+        mockResponse.put("content", "Analyzing thread status...");
         lenient().when(mockProvider.chatCompletion(any(ArrayNode.class), any()))
                 .thenReturn(mockResponse);
 
-        assertDoesNotThrow(() -> tuiClient.processCommand("查看线程状态"));
+        assertDoesNotThrow(() -> tuiClient.processCommand("Check thread status"));
     }
 
     @Test
@@ -294,13 +294,13 @@ class TUIClientTest {
         // Second call after tool result - return final response
         ObjectNode finalResponse = mapper.createObjectNode();
         finalResponse.put("role", "assistant");
-        finalResponse.put("content", "分析完成");
+        finalResponse.put("content", "Analysis complete");
 
         lenient().when(mockProvider.chatCompletion(any(ArrayNode.class), any()))
                 .thenReturn(mockResponse)
                 .thenReturn(finalResponse);
 
-        assertDoesNotThrow(() -> tuiClient.processCommand("查看线程"));
+        assertDoesNotThrow(() -> tuiClient.processCommand("Check threads"));
     }
 
     // ==================== Command Routing ====================
@@ -332,6 +332,6 @@ class TUIClientTest {
         lenient().when(mockProvider.chatCompletion(any(ArrayNode.class), any()))
                 .thenReturn(mockResponse);
 
-        assertDoesNotThrow(() -> tuiClient.processCommand("这是一条自然语言"));
+        assertDoesNotThrow(() -> tuiClient.processCommand("This is a natural language query"));
     }
 }

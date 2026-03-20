@@ -56,6 +56,47 @@ public class TUIClient {
     private static final String RED = "\u001B[31m";
 
     /**
+     * Get environment variable or prompt user for input if not set.
+     *
+     * @param envName    Name of the environment variable
+     * @param prompt     Prompt message to display
+     * @param isSecret   If true, input will be hidden (for passwords/API keys)
+     * @return The value from environment or user input
+     */
+    private static String getEnvOrPrompt(String envName, String prompt, boolean isSecret) {
+        String value = System.getenv(envName);
+        if (value != null && !value.trim().isEmpty()) {
+            System.out.println("[+] " + envName + " loaded from environment");
+            return value;
+        }
+
+        // Prompt user for input
+        System.out.print(prompt);
+        java.io.Console console = System.console();
+
+        if (console == null) {
+            // Fallback for non-interactive environments (e.g., IDE, piped input)
+            try {
+                BufferedReader fallbackReader = new BufferedReader(new InputStreamReader(System.in));
+                value = fallbackReader.readLine();
+            } catch (IOException e) {
+                System.err.println("[-] Failed to read input: " + e.getMessage());
+                return null;
+            }
+        } else {
+            if (isSecret) {
+                // Hide input for sensitive data
+                char[] chars = console.readPassword();
+                value = chars != null ? new String(chars) : null;
+            } else {
+                value = console.readLine();
+            }
+        }
+
+        return value;
+    }
+
+    /**
      * Main entry point for TUI client.
      * Attaches Arthas to target JVM and starts interactive session.
      */
@@ -77,20 +118,15 @@ public class TUIClient {
             System.out.println("🚀 Agent is ready!");
             System.out.println("=================================================\n");
 
-            // 3. Setup AI provider from environment
-            String apiKey = System.getenv("OPENAI_API_KEY");
-            if (apiKey == null || apiKey.trim().isEmpty()) {
-                System.err.println("[-] OPENAI_API_KEY environment variable is not set.");
-                System.err.println("[-] Please set it before running, e.g.: export OPENAI_API_KEY=sk-xxx");
-                System.exit(1);
-            }
+            // 3. Setup AI provider from environment (with interactive input fallback)
+            String apiKey = getEnvOrPrompt("OPENAI_API_KEY", "Enter OPENAI_API_KEY: ", true);
+            String baseUrl = getEnvOrPrompt("OPENAI_BASE_URL", "Enter OPENAI_BASE_URL (default: https://api.openai.com/v1): ", false);
+            String model = getEnvOrPrompt("OPENAI_MODEL", "Enter OPENAI_MODEL (default: gpt-4o-mini): ", false);
 
-            String baseUrl = System.getenv("OPENAI_BASE_URL");
+            // Apply defaults if empty
             if (baseUrl == null || baseUrl.trim().isEmpty()) {
                 baseUrl = "https://api.openai.com/v1/chat/completions";
             }
-
-            String model = System.getenv("OPENAI_MODEL");
             if (model == null || model.trim().isEmpty()) {
                 model = "gpt-4o-mini";
             }
@@ -144,11 +180,11 @@ public class TUIClient {
         System.out.println(GREEN + "║          🦞 ArthasClaw TUI - Java Diagnostic Tool         ║" + RESET);
         System.out.println(GREEN + "╚══════════════════════════════════════════════════════════╝" + RESET);
         System.out.println();
-        System.out.println("命令模式:");
-        System.out.println("  " + YELLOW + "<自然语言>" + RESET + "  - AI 智能诊断 (默认)");
-        System.out.println("  " + YELLOW + "!<命令>" + RESET + "    - 执行 Shell 命令 (例: !ls -la)");
-        System.out.println("  " + YELLOW + "$<命令>" + RESET + "    - 执行 Arthas 命令 (例: $thread)");
-        System.out.println("  " + YELLOW + "/<命令>" + RESET + "    - 系统命令 (例: /help, /quit)");
+        System.out.println("Command modes:");
+        System.out.println("  " + YELLOW + "<natural lang>" + RESET + "  - AI-powered diagnosis (default)");
+        System.out.println("  " + YELLOW + "!<command>" + RESET + "     - Execute shell command (e.g., !ls -la)");
+        System.out.println("  " + YELLOW + "$<command>" + RESET + "     - Execute Arthas command (e.g., $thread)");
+        System.out.println("  " + YELLOW + "/<command>" + RESET + "     - System commands (e.g., /help, /quit)");
         System.out.println();
     }
 
@@ -176,7 +212,7 @@ public class TUIClient {
             case "quit":
             case "exit":
             case "q":
-                System.out.println(BLUE + "[*] 再见!" + RESET);
+                System.out.println(BLUE + "[*] Goodbye!" + RESET);
                 running = false;
                 break;
 
@@ -188,7 +224,7 @@ public class TUIClient {
 
             case "clear":
                 loopAgent.clearMessages();
-                System.out.println(BLUE + "[*] 对话历史已清空" + RESET);
+                System.out.println(BLUE + "[*] Conversation history cleared" + RESET);
                 break;
 
             case "tools":
@@ -204,51 +240,51 @@ public class TUIClient {
                 break;
 
             default:
-                System.out.println(RED + "[-] 未知系统命令: /" + command + RESET);
-                System.out.println(YELLOW + "    输入 /help 查看可用命令" + RESET);
+                System.out.println(RED + "[-] Unknown system command: /" + command + RESET);
+                System.out.println(YELLOW + "    Type /help to see available commands" + RESET);
         }
     }
 
     private void printHelp() {
         System.out.println();
         System.out.println(CYAN + "════════════════════════════════════════════════════════" + RESET);
-        System.out.println(CYAN + "                      帮助信息                          " + RESET);
+        System.out.println(CYAN + "                      Help                               " + RESET);
         System.out.println(CYAN + "════════════════════════════════════════════════════════" + RESET);
         System.out.println();
-        System.out.println("【系统命令】 /<命令>");
-        System.out.println("  /help, /h, /?    显示帮助信息");
-        System.out.println("  /quit, /exit, /q  退出程序");
-        System.out.println("  /clear            清空对话历史");
-        System.out.println("  /tools            列出可用工具");
-        System.out.println("  /history          查看对话历史");
-        System.out.println("  /version          显示版本信息");
+        System.out.println("[System Commands] /<command>");
+        System.out.println("  /help, /h, /?     Show this help");
+        System.out.println("  /quit, /exit, /q  Exit the program");
+        System.out.println("  /clear            Clear conversation history");
+        System.out.println("  /tools            List available tools");
+        System.out.println("  /history          Show conversation history");
+        System.out.println("  /version          Show version info");
         System.out.println();
-        System.out.println("【Shell 命令】 !<命令>");
-        System.out.println("  !ls -la           列出当前目录文件");
-        System.out.println("  !ps aux | grep java  查找 Java 进程");
-        System.out.println("  !jstat -gc <pid>  查看 GC 统计信息");
+        System.out.println("[Shell Commands] !<command>");
+        System.out.println("  !ls -la           List files in current directory");
+        System.out.println("  !ps aux | grep java  Find Java processes");
+        System.out.println("  !jstat -gc <pid>  View GC statistics");
         System.out.println();
-        System.out.println("【Arthas 命令】 $<命令>");
-        System.out.println("  $thread           查看线程信息");
-        System.out.println("  $dashboard        查看仪表盘");
-        System.out.println("  $jad <class>      反编译类");
-        System.out.println("  $watch <class> <method>  观察方法调用");
+        System.out.println("[Arthas Commands] $<command>");
+        System.out.println("  $thread           View thread info");
+        System.out.println("  $dashboard        View dashboard");
+        System.out.println("  $jad <class>      Decompile class");
+        System.out.println("  $watch <class> <method>  Watch method calls");
         System.out.println();
-        System.out.println("【自然语言】 直接输入问题");
-        System.out.println("  MathGame有哪些方法?");
-        System.out.println("  查看线程死锁情况");
-        System.out.println("  分析内存使用情况");
+        System.out.println("[Natural Language] Just type your question");
+        System.out.println("  What methods does MathGame have?");
+        System.out.println("  Check for thread deadlock");
+        System.out.println("  Analyze memory usage");
         System.out.println();
     }
 
     private void listTools() {
         if (toolsConfig == null || toolsConfig.size() == 0) {
-            System.out.println(YELLOW + "[!] 未加载工具" + RESET);
+            System.out.println(YELLOW + "[!] No tools loaded" + RESET);
             return;
         }
 
         System.out.println();
-        System.out.println(CYAN + "可用 Arthas 工具 (" + toolsConfig.size() + " 个):" + RESET);
+        System.out.println(CYAN + "Available Arthas tools (" + toolsConfig.size() + "):" + RESET);
         System.out.println();
 
         int count = 0;
@@ -274,7 +310,7 @@ public class TUIClient {
     private void showHistory() {
         ArrayNode messages = loopAgent.getMessages();
         System.out.println();
-        System.out.println(CYAN + "对话历史 (" + (messages.size() - 1) + " 条):" + RESET);
+        System.out.println(CYAN + "Conversation history (" + (messages.size() - 1) + " messages):" + RESET);
         System.out.println();
         for (int i = 1; i < messages.size(); i++) {
             JsonNode msg = messages.get(i);
@@ -297,11 +333,11 @@ public class TUIClient {
      */
     private void handleShellCommand(String cmd) {
         if (cmd.isEmpty()) {
-            System.out.println(RED + "[-] 请输入要执行的 Shell 命令" + RESET);
+            System.out.println(RED + "[-] Please enter a shell command to execute" + RESET);
             return;
         }
 
-        System.out.println(YELLOW + "[Shell] 执行: " + cmd + RESET);
+        System.out.println(YELLOW + "[Shell] Executing: " + cmd + RESET);
         System.out.println();
 
         try {
@@ -318,13 +354,13 @@ public class TUIClient {
             int exitCode = process.waitFor();
             System.out.println();
             if (exitCode == 0) {
-                System.out.println(GREEN + "[+] 命令执行完成 (exit code: " + exitCode + ")" + RESET);
+                System.out.println(GREEN + "[+] Command completed (exit code: " + exitCode + ")" + RESET);
             } else {
-                System.out.println(RED + "[-] 命令执行失败 (exit code: " + exitCode + ")" + RESET);
+                System.out.println(RED + "[-] Command failed (exit code: " + exitCode + ")" + RESET);
             }
 
         } catch (Exception e) {
-            System.out.println(RED + "[-] 执行失败: " + e.getMessage() + RESET);
+            System.out.println(RED + "[-] Execution failed: " + e.getMessage() + RESET);
         }
     }
 
@@ -333,11 +369,11 @@ public class TUIClient {
      */
     private void handleArthasCommand(String cmd) {
         if (cmd.isEmpty()) {
-            System.out.println(RED + "[-] 请输入要执行的 Arthas 命令" + RESET);
+            System.out.println(RED + "[-] Please enter an Arthas command to execute" + RESET);
             return;
         }
 
-        System.out.println(YELLOW + "[Arthas] 执行: " + cmd + RESET);
+        System.out.println(YELLOW + "[Arthas] Executing: " + cmd + RESET);
         System.out.println();
 
         try {
@@ -364,12 +400,12 @@ public class TUIClient {
             String resultStr = extractMcpResult(mcpResult);
             System.out.println(resultStr);
             System.out.println();
-            System.out.println(GREEN + "[+] Arthas 命令执行完成" + RESET);
+            System.out.println(GREEN + "[+] Arthas command completed" + RESET);
 
         } catch (Exception e) {
             // If direct tool call fails, try using AI to interpret
-            System.out.println(YELLOW + "[*] 直接执行失败，尝试通过 AI 执行..." + RESET);
-            handleNaturalLanguage("执行 Arthas 命令: " + cmd);
+            System.out.println(YELLOW + "[*] Direct execution failed, trying via AI..." + RESET);
+            handleNaturalLanguage("Execute Arthas command: " + cmd);
         }
     }
 
@@ -400,7 +436,7 @@ public class TUIClient {
     }
 
     private void fetchToolsList() {
-        System.out.println("[*] 加载 Arthas 工具...");
+        System.out.println("[*] Loading Arthas tools...");
         try {
             JsonNode result = mcpClient.listTools().get(5, TimeUnit.SECONDS);
             JsonNode toolsList = result.get("tools");
@@ -427,15 +463,15 @@ public class TUIClient {
                     toolsConfig.add(aiTool);
                 }
             }
-            System.out.println(GREEN + "[+] 已加载 " + toolsConfig.size() + " 个工具" + RESET);
+            System.out.println(GREEN + "[+] Loaded " + toolsConfig.size() + " tools" + RESET);
         } catch (Exception e) {
-            System.err.println(RED + "[-] 加载工具失败: " + e.getMessage() + RESET);
+            System.err.println(RED + "[-] Failed to load tools: " + e.getMessage() + RESET);
             toolsConfig = mapper.createArrayNode();
         }
     }
 
     private void cleanup() {
-        System.out.println(BLUE + "[*] 正在关闭..." + RESET);
+        System.out.println(BLUE + "[*] Shutting down..." + RESET);
         loopAgent.close();
         try {
             reader.close();

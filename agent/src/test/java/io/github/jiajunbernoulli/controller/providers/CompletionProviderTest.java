@@ -49,7 +49,7 @@ class CompletionProviderTest {
     @Test
     @DisplayName("Should return response with assistant role")
     void testResponseRole() throws IOException {
-        ArrayNode messages = createMessages("查看内存使用情况");
+        ArrayNode messages = createMessages("Check memory usage");
         ObjectNode response = provider.chatCompletion(messages, null);
 
         assertEquals("assistant", response.get("role").asText());
@@ -58,7 +58,7 @@ class CompletionProviderTest {
     @Test
     @DisplayName("Should echo user message in mock response")
     void testEchoUserMessage() throws IOException {
-        String userMessage = "分析堆内存";
+        String userMessage = "Analyze heap memory";
         ArrayNode messages = createMessages(userMessage);
         ObjectNode response = provider.chatCompletion(messages, null);
 
@@ -69,7 +69,7 @@ class CompletionProviderTest {
     @Test
     @DisplayName("Should handle memory analysis query")
     void testMemoryAnalysisQuery() throws IOException {
-        String query = "查看JVM内存使用情况";
+        String query = "Check JVM memory usage";
         ArrayNode messages = createMessages(query);
         ObjectNode response = provider.chatCompletion(messages, null);
 
@@ -80,7 +80,7 @@ class CompletionProviderTest {
     @Test
     @DisplayName("Should handle heap dump query")
     void testHeapDumpQuery() throws IOException {
-        String query = "生成堆转储文件";
+        String query = "Generate heap dump file";
         ArrayNode messages = createMessages(query);
         ObjectNode response = provider.chatCompletion(messages, null);
 
@@ -91,7 +91,7 @@ class CompletionProviderTest {
     @Test
     @DisplayName("Should handle thread analysis query")
     void testThreadAnalysisQuery() throws IOException {
-        String query = "查看线程状态";
+        String query = "Check thread status";
         ArrayNode messages = createMessages(query);
         ObjectNode response = provider.chatCompletion(messages, null);
 
@@ -102,7 +102,7 @@ class CompletionProviderTest {
     @Test
     @DisplayName("Should handle GC analysis query")
     void testGCAnalysisQuery() throws IOException {
-        String query = "分析GC日志";
+        String query = "Analyze GC logs";
         ArrayNode messages = createMessages(query);
         ObjectNode response = provider.chatCompletion(messages, null);
 
@@ -114,7 +114,7 @@ class CompletionProviderTest {
     @Test
     @DisplayName("Should handle classloader query")
     void testClassloaderQuery() throws IOException {
-        String query = "查看类加载器信息";
+        String query = "Check classloader info";
         ArrayNode messages = createMessages(query);
         ObjectNode response = provider.chatCompletion(messages, null);
 
@@ -134,29 +134,29 @@ class CompletionProviderTest {
 
         ObjectNode userMsg1 = mapper.createObjectNode();
         userMsg1.put("role", "user");
-        userMsg1.put("content", "查看内存");
+        userMsg1.put("content", "Check memory");
         messages.add(userMsg1);
 
         ObjectNode assistantMsg = mapper.createObjectNode();
         assistantMsg.put("role", "assistant");
-        assistantMsg.put("content", "内存使用正常");
+        assistantMsg.put("content", "Memory usage is normal");
         messages.add(assistantMsg);
 
         ObjectNode userMsg2 = mapper.createObjectNode();
         userMsg2.put("role", "user");
-        userMsg2.put("content", "详细分析堆内存");
+        userMsg2.put("content", "Analyze heap memory in detail");
         messages.add(userMsg2);
 
         ObjectNode response = provider.chatCompletion(messages, null);
 
         String content = response.get("content").asText();
-        assertTrue(content.contains("详细分析堆内存"));
+        assertTrue(content.contains("Analyze heap memory in detail"));
     }
 
     @Test
     @DisplayName("Should handle tools config parameter (even if unused in mock)")
     void testWithToolsConfig() throws IOException {
-        ArrayNode messages = createMessages("使用arthas工具分析");
+        ArrayNode messages = createMessages("Use arthas tools for analysis");
         ArrayNode toolsConfig = createMockToolsConfig();
 
         ObjectNode response = provider.chatCompletion(messages, toolsConfig);
@@ -168,13 +168,13 @@ class CompletionProviderTest {
     @Test
     @DisplayName("Provider should be reusable for multiple calls")
     void testMultipleCalls() throws IOException {
-        ArrayNode messages1 = createMessages("第一次查询");
+        ArrayNode messages1 = createMessages("First query");
         ObjectNode response1 = provider.chatCompletion(messages1, null);
-        assertTrue(response1.get("content").asText().contains("第一次查询"));
+        assertTrue(response1.get("content").asText().contains("First query"));
 
-        ArrayNode messages2 = createMessages("第二次查询");
+        ArrayNode messages2 = createMessages("Second query");
         ObjectNode response2 = provider.chatCompletion(messages2, null);
-        assertTrue(response2.get("content").asText().contains("第二次查询"));
+        assertTrue(response2.get("content").asText().contains("Second query"));
     }
 
     // Helper methods
@@ -203,7 +203,7 @@ class CompletionProviderTest {
 
         ObjectNode function = mapper.createObjectNode();
         function.put("name", "memory");
-        function.put("description", "查看JVM内存信息");
+        function.put("description", "Check JVM memory info");
 
         ObjectNode params = mapper.createObjectNode();
         params.put("type", "object");

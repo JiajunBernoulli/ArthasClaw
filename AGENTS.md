@@ -45,6 +45,14 @@ Use the following prefixes with a colon, followed by a lowercase description:
 - `test: add unit tests for mcp client`
 - `style: fix indentation in bot agent class`
 
+## Code Language Guidelines
+
+**IMPORTANT**: Documents should primarily be in English, except when testing or documentation requires Chinese.
+
+- All prompts, messages, and UI text must be in English
+- This applies to Java source code, shell scripts
+- User input (natural language queries) can be in any language
+
 ## Security Guidelines
 
 **IMPORTANT**: Never hardcode secrets, API keys, or passwords in the codebase.
