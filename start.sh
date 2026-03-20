@@ -29,6 +29,9 @@ fi
 echo ""
 echo "[2/3] Configure OpenAI API..."
 
+# Force read from terminal to avoid buffered input issues on macOS
+exec </dev/tty
+
 if [ -z "$OPENAI_API_KEY" ]; then
     echo ""
     echo "OPENAI_API_KEY is not set."
