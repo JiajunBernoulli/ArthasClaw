@@ -130,7 +130,7 @@ echo ""
 # Start jar with PID and optional question
 QUESTION="${1:-}"
 if [ -n "$QUESTION" ]; then
-    java -jar "$JAR_PATH" "$SELECTED_PID" "$QUESTION"
+    java -jar "$JAR_PATH" "$SELECTED_PID" "$QUESTION" < "$TTY_PATH"
 else
-    java -jar "$JAR_PATH" "$SELECTED_PID"
+    java -jar "$JAR_PATH" "$SELECTED_PID" < "$TTY_PATH"
 fi
