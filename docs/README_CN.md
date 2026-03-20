@@ -1,7 +1,7 @@
-# ArthasClaw：JVM AI 助手
+# 🦞 ArthasClaw - JVM AI Assistant
 
 <p align="center">
-  <img src="rectangle.jpg" alt="ArthasClaw Logo" width="400">
+  <img src="rectangle.jpg" alt="ArthasClaw Logo" width="800">
 </p>
 
 JVM 诊断助手，基于 Arthas 的自然语言诊断工具。
@@ -9,6 +9,11 @@ JVM 诊断助手，基于 Arthas 的自然语言诊断工具。
 ## 简介
 
 ArthasClaw 是一个基于 Arthas 的 JVM 诊断工具，通过自然语言交互方式，让开发者无需记忆复杂的 Arthas 命令，即可快速诊断 Java 应用问题。
+
+## 优点
+在JVM诊断场景下，ArthasClaw相比通用Agent有以下优点：
+- **依赖少**：OpenClaw需要Node22+版本，Nanobot需要Python3.11+版本，而ArthasClaw只需Java8+版本，能一键安装在任何Java应用的服务器中。
+- **速度快**： 本地的Claude Code、Trae等工具与远程服务器的Arthas通信网络可能较慢，甚至不可达。而ArthasClaw可以直接运行在Java应用所在的服务器中，从本地直接请求Arthas MCP，速度更快、稳定性更高。
 
 ## 特性
 

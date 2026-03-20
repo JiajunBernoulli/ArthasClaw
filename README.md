@@ -1,12 +1,17 @@
-# ArthasClaw: JVM AI Assistant
+# 🦞 ArthasClaw - JVM AI Assistant | [中文说明](docs/README_CN.md)
 
 <p align="center">
-  <img src="docs/rectangle.jpg" alt="ArthasClaw Logo" width="400">
+  <img src="docs/rectangle.jpg" alt="ArthasClaw Logo" width="800">
 </p>
 
-[中文说明](docs/README_CN.md)
-
 JVM diagnostic assistant with natural language interface, powered by Arthas.
+
+## Why ArthasClaw?
+
+In JVM diagnostic scenarios, ArthasClaw offers these advantages over general-purpose agents:
+
+- **Fewer Dependencies**: OpenClaw requires Node.js 22+, Nanobot requires Python 3.11+, while ArthasClaw only needs Java 8+, making it easy to install on any server running Java applications.
+- **Faster & More Stable**: Local tools like Claude Code and Trae may have slow or unreachable network connections to remote Arthas servers. ArthasClaw runs directly on the same server as your Java application, making local requests to Arthas MCP for faster and more stable performance.
 
 ## Quickstart
 
@@ -72,9 +77,9 @@ Once the TUI is running, you can ask questions like:
 ```
 arthas> 分析MathGame run方法的耗时
 arthas> 查看线程死锁情况
-arthas> MathGame有哪些方法?
+arthas> What methods does MathGame have?
 ```
 
 # TODO
-[] skill
-[] memory
+- [] skill
+- [] memory
