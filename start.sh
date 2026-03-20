@@ -7,6 +7,13 @@ JAR_NAME="arthas-claw-0.0.2-beta-jar-with-dependencies.jar"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 JAR_PATH="$SCRIPT_DIR/$JAR_NAME"
 
+# Determine input source: use /dev/tty if running in a pipe, otherwise use stdin
+if [ ! -t 0 ]; then
+    TTY_PATH="/dev/tty"
+else
+    TTY_PATH="/dev/stdin"
+fi
+
 echo "=========================================="
 echo "  ArthasClaw One-Click Startup"
 echo "=========================================="
@@ -29,14 +36,12 @@ fi
 echo ""
 echo "[2/3] Configure OpenAI API..."
 
-# Force read from terminal to avoid buffered input issues on macOS
-exec </dev/tty
-
 if [ -z "$OPENAI_API_KEY" ]; then
     echo ""
     echo "OPENAI_API_KEY is not set."
     printf "Enter OPENAI_API_KEY: "
-    read -r API_KEY_INPUT
+    read -rs API_KEY_INPUT < "$TTY_PATH"
+    echo ""
     export OPENAI_API_KEY="$API_KEY_INPUT"
 else
     echo "[+] OPENAI_API_KEY already set"
@@ -44,7 +49,7 @@ fi
 
 if [ -z "$OPENAI_BASE_URL" ]; then
     printf "Enter OPENAI_BASE_URL (press Enter for default: https://api.openai.com/v1): "
-    read -r BASE_URL_INPUT
+    read -r BASE_URL_INPUT < "$TTY_PATH"
     if [ -n "$BASE_URL_INPUT" ]; then
         export OPENAI_BASE_URL="$BASE_URL_INPUT"
     else
@@ -56,7 +61,7 @@ fi
 
 if [ -z "$OPENAI_MODEL" ]; then
     printf "Enter OPENAI_MODEL (press Enter for default: gpt-4o-mini): "
-    read -r MODEL_INPUT
+    read -r MODEL_INPUT < "$TTY_PATH"
     if [ -n "$MODEL_INPUT" ]; then
         export OPENAI_MODEL="$MODEL_INPUT"
     else
@@ -105,7 +110,7 @@ if [ "$JAVA_COUNT" -eq 1 ]; then
 else
     echo ""
     printf "Enter process number [1-%d]: " "$JAVA_COUNT"
-    read -r SELECTION
+    read -r SELECTION < "$TTY_PATH"
     
     if ! [[ "$SELECTION" =~ ^[0-9]+$ ]] || [ "$SELECTION" -lt 1 ] || [ "$SELECTION" -gt "$JAVA_COUNT" ]; then
         echo "[-] Invalid selection"

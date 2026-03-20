@@ -18,7 +18,7 @@ In JVM diagnostic scenarios, ArthasClaw offers these advantages over general-pur
 ### One-line Install & Run
 
 ```bash
-curl -sL https://raw.githubusercontent.com/JiajunBernoulli/ArthasClaw/main/start.sh | sh
+curl -sL https://raw.githubusercontent.com/JiajunBernoulli/ArthasClaw/main/start.sh | bash
 ```
 
 This will:
