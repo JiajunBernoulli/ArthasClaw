@@ -12,7 +12,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-cd "$SCRIPT_DIR/agent"
+POM_FILE="$SCRIPT_DIR/agent/pom.xml"
 
 # Colors for output
 RED='\033[0;31m'
@@ -26,15 +26,24 @@ log_success() { echo -e "${GREEN}[OK]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
-# Get current version from pom.xml
+# Get current project version from pom.xml (only the project version, not dependency versions)
 get_current_version() {
-    grep -oP '(?<=<version>)[^<]+' pom.xml | head -1
+    xmllint --xpath "//*[local-name()='project']/*[local-name()='version']/text()" "$POM_FILE" 2>/dev/null || \
+    grep -oP '(?<=<version>)[^<]+' "$POM_FILE" | head -1
 }
 
-# Update version in pom.xml
+# Update only project version in pom.xml (preserve dependency versions)
 update_version() {
     local new_version="$1"
-    sed -i "s|<version>.*</version>|<version>${new_version}</version>|" pom.xml
+    # Use xmlstarlet or sed with precise matching
+    if command -v xmlstarlet &> /dev/null; then
+        xmlstarlet ed -P -N ns="http://maven.apache.org/POM/4.0.0" \
+            -u "/ns:project/ns:version" -v "$new_version" "$POM_FILE" > "${POM_FILE}.tmp" && \
+            mv "${POM_FILE}.tmp" "$POM_FILE"
+    else
+        # Fallback: only replace the first <version> tag (project version)
+        sed -i "0,/<version>.*<\/version>/s/<version>.*<\/version>/<version>${new_version}<\/version>/" "$POM_FILE"
+    fi
     log_success "Version updated to ${new_version}"
 }
 
