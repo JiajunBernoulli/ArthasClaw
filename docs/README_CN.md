@@ -34,4 +34,8 @@ curl -sL https://raw.githubusercontent.com/JiajunBernoulli/ArthasClaw/main/start
 2. 检查 OpenAI 环境变量，缺失时提示输入
 3. 列出可选的 Java 进程供选择
 4. 启动 ArthasClaw 并连接目标进程
+5. 在 TUI 界面中输入自然语言问题
 
+<p align="center">
+  <img src="tui_cn.gif" alt="ArthasClaw TUI Interface" width="600">
+</p>

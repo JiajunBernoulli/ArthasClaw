@@ -155,7 +155,7 @@ public class TUIClient {
 
         while (running) {
             try {
-                System.out.print("\n" + CYAN + "arthas> " + RESET);
+                System.out.print("\n" + CYAN + "arthasclaw> " + RESET);
                 String input = reader.readLine();
 
                 if (input == null || input.trim().isEmpty()) {

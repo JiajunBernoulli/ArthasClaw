@@ -40,7 +40,7 @@ public class LoopAgent {
         // System prompt
         ObjectNode sysMsg = mapper.createObjectNode();
         sysMsg.put("role", "system");
-        sysMsg.put("content", "You are an expert Java diagnostic assistant. You have access to Arthas tools via MCP. Use the provided tools to inspect and diagnose the Java application. Respond in Chinese.");
+        sysMsg.put("content", "You are an expert Java diagnostic assistant. You have access to Arthas tools via MCP. Use the provided tools to inspect and diagnose the Java application.\n\nLanguage Rule: Always reply in the same language that the user used to ask the question. - If the input is Chinese, output Chinese. - If the input is English, output English. - Do not output translations unless explicitly asked.");
         messages.add(sysMsg);
     }
 

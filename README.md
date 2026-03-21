@@ -26,6 +26,11 @@ This will:
 2. Prompt for OpenAI environment variables if not set
 3. List available Java processes for selection
 4. Start ArthasClaw with the selected PID
+5. Ask natural language questions in the TUI interface
+
+<p align="center">
+  <img src="docs/tui_en.gif" alt="ArthasClaw TUI Interface" width="600">
+</p>
 
 ### Manual Build
 
@@ -75,10 +80,9 @@ java -jar bot-1.0.0-jar-with-dependencies.jar <PID>
 Once the TUI is running, you can ask questions like:
 
 ```
-arthas> 分析MathGame run方法的耗时
-arthas> 查看线程死锁情况
-arthas> What methods does MathGame have?
+arthasclaw> What methods does MathGame have?
 ```
+
 
 # TODO
 - [] skill
