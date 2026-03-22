@@ -4,10 +4,13 @@
 #
 # This script:
 # 1. Validates prerequisites (GPG, Maven, git)
-# 2. Updates version number (optional)
-# 3. Runs tests
-# 4. Builds and deploys to Maven Central
-# 5. Creates git tag and pushes
+# 2. Checks git working directory is clean
+# 3. Updates version number (optional)
+# 4. Runs tests
+# 5. Builds and deploys to Maven Central
+# 6. Commits version change
+# 7. Creates git tag
+# 8. Pushes to remote
 
 set -e
 
@@ -95,24 +98,7 @@ fi
 echo ""
 
 # ============================================
-# Step 2: Handle version update
-# ============================================
-CURRENT_VERSION=$(get_current_version)
-log_info "Current version: $CURRENT_VERSION"
-
-if [ -n "$1" ]; then
-    NEW_VERSION="$1"
-    log_info "Updating version to: $NEW_VERSION"
-    update_version "$NEW_VERSION"
-    CURRENT_VERSION="$NEW_VERSION"
-else
-    log_info "No version specified, keeping current version: $CURRENT_VERSION"
-fi
-
-echo ""
-
-# ============================================
-# Step 3: Check working directory status
+# Step 2: Check working directory status (before making changes)
 # ============================================
 log_info "Checking git status..."
 cd "$SCRIPT_DIR"
@@ -138,6 +124,23 @@ if [ "$CURRENT_BRANCH" != "main" ] && [ "$CURRENT_BRANCH" != "master" ]; then
 fi
 
 log_success "Working directory is clean"
+echo ""
+
+# ============================================
+# Step 3: Handle version update
+# ============================================
+CURRENT_VERSION=$(get_current_version)
+log_info "Current version: $CURRENT_VERSION"
+
+if [ -n "$1" ]; then
+    NEW_VERSION="$1"
+    log_info "Updating version to: $NEW_VERSION"
+    update_version "$NEW_VERSION"
+    CURRENT_VERSION="$NEW_VERSION"
+else
+    log_info "No version specified, keeping current version: $CURRENT_VERSION"
+fi
+
 echo ""
 
 # ============================================
