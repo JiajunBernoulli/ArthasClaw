@@ -84,6 +84,21 @@ arthasclaw> What methods does MathGame have?
 ```
 
 
+### 6. Load Skills (Optional)
+
+You can load skill files into the conversation context for richer context:
+
+```
+arthasclaw> @skill.md           # Load skill from current directory
+arthasclaw> @/path/to/skill.md  # Load skill from absolute path
+arthasclaw> @~/skills/debug.md  # Load skill from home directory
+```
+
+This is useful when you want to:
+- Load diagnostic skills/checklists
+- Provide domain-specific knowledge
+- Share context across sessions
+
 # TODO
-- [] skill
+- [x] skill
 - [] memory
