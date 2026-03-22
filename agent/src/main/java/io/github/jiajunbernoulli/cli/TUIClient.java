@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * TUI (Text User Interface) client for ArthasClaw.
- * Supports four command modes:
+ * Supports five command modes:
  * - Default: Natural language query (handled by AI)
  * - ! prefix: Execute shell command
  * - $ prefix: Execute Arthas command via MCP
@@ -182,6 +182,7 @@ public class TUIClient {
         System.out.println("  " + YELLOW + "<natural lang>" + RESET + "  - AI-powered diagnosis (default)");
         System.out.println("  " + YELLOW + "!<command>" + RESET + "     - Execute shell command (e.g., !ls -la)");
         System.out.println("  " + YELLOW + "$<command>" + RESET + "     - Execute Arthas command (e.g., $thread)");
+        System.out.println("  " + YELLOW + "@<filepath>" + RESET + "    - Load file into context (e.g., @source.java, @skill.md)");
         System.out.println("  " + YELLOW + "/<command>" + RESET + "     - System commands (e.g., /help, /quit)");
         System.out.println();
     }
@@ -191,6 +192,8 @@ public class TUIClient {
             handleSystemCommand(input.substring(1));
         } else if (input.startsWith("!")) {
             handleShellCommand(input.substring(1));
+        } else if (input.startsWith("@")) {
+            handleFileCommand(input.substring(1));
         } else if (input.startsWith("$")) {
             handleArthasCommand(input.substring(1));
         } else {
@@ -268,6 +271,11 @@ public class TUIClient {
         System.out.println("  $jad <class>      Decompile class");
         System.out.println("  $watch <class> <method>  Watch method calls");
         System.out.println();
+        System.out.println("[File Loading] @<filepath>");
+        System.out.println("  @source.java       Load Java source file into context");
+        System.out.println("  @skill.md          Load skill/documentation file");
+        System.out.println("  @/path/to/file.txt Load file from absolute path");
+        System.out.println();
         System.out.println("[Natural Language] Just type your question");
         System.out.println("  What methods does MathGame have?");
         System.out.println("  Check for thread deadlock");
@@ -329,6 +337,66 @@ public class TUIClient {
     /**
      * Handle shell commands (!cmd)
      */
+    /**
+     * Handle file loading commands (@filepath)
+     * Loads file content into conversation context for AI analysis.
+     */
+    private void handleFileCommand(String filepath) {
+        if (filepath.isEmpty()) {
+            System.out.println(RED + "[-] Please specify a file path to load" + RESET);
+            return;
+        }
+
+        // Expand ~ to home directory
+        String expandedPath = filepath.replaceFirst("^~", System.getProperty("user.home"));
+        java.io.File file = new java.io.File(expandedPath);
+
+        if (!file.exists()) {
+            System.out.println(RED + "[-] File not found: " + filepath + RESET);
+            return;
+        }
+
+        if (!file.isFile()) {
+            System.out.println(RED + "[-] Not a regular file: " + filepath + RESET);
+            return;
+        }
+
+        // Check file size (limit to 1MB for safety)
+        long maxSize = 1024 * 1024;
+        if (file.length() > maxSize) {
+            System.out.println(RED + "[-] File too large (max 1MB): " + file.length() + " bytes" + RESET);
+            return;
+        }
+
+        System.out.println(YELLOW + "[File] Loading: " + filepath + RESET);
+
+        try {
+            java.nio.file.Path path = file.toPath();
+            String content = new String(java.nio.file.Files.readAllBytes(path));
+            String filename = file.getName();
+
+            // Create user message with file content
+            StringBuilder msgBuilder = new StringBuilder();
+            msgBuilder.append("[File loaded: ").append(filename).append("]\n");
+            msgBuilder.append("```\n");
+            msgBuilder.append(content);
+            msgBuilder.append("\n```\n");
+            msgBuilder.append("The above file content has been added to the conversation context. ");
+            msgBuilder.append("You can now ask questions about this file.");
+
+            String fileMessage = msgBuilder.toString();
+
+            // Add to conversation history via LoopAgent
+            loopAgent.addFileContext(filename, content);
+
+            System.out.println(GREEN + "[+] File loaded: " + filename + " (" + content.length() + " chars)" + RESET);
+            System.out.println(BLUE + "[*] You can now ask questions about this file." + RESET);
+
+        } catch (Exception e) {
+            System.out.println(RED + "[-] Failed to read file: " + e.getMessage() + RESET);
+        }
+    }
+
     private void handleShellCommand(String cmd) {
         if (cmd.isEmpty()) {
             System.out.println(RED + "[-] Please enter a shell command to execute" + RESET);

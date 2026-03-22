@@ -208,6 +208,25 @@ public class LoopAgent {
     /**
      * Clear conversation history (keep system prompt).
      */
+    /**
+     * Add file content to conversation context.
+     * @param filename the name of the file
+     * @param content the file content
+     */
+    public void addFileContext(String filename, String content) {
+        ObjectNode fileMsg = mapper.createObjectNode();
+        fileMsg.put("role", "user");
+        StringBuilder sb = new StringBuilder();
+        sb.append("[File loaded: ").append(filename).append("]\n");
+        sb.append("```\n");
+        sb.append(content);
+        sb.append("\n```\n");
+        sb.append("The above file content is now in the conversation context. ");
+        sb.append("You can reference it when answering questions.");
+        fileMsg.put("content", sb.toString());
+        messages.add(fileMsg);
+    }
+
     public void clearMessages() {
         while (messages.size() > 1) {
             messages.remove(1);
