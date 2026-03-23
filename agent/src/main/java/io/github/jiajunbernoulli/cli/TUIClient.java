@@ -30,6 +30,11 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.concurrent.TimeUnit;
 
+import org.jline.reader.LineReader;
+import org.jline.reader.LineReaderBuilder;
+import org.jline.terminal.Terminal;
+import org.jline.terminal.TerminalBuilder;
+
 /**
  * TUI (Text User Interface) client for ArthasClaw.
  * Supports four command modes:
@@ -46,6 +51,8 @@ public class TUIClient {
     private ArrayNode toolsConfig;
     private boolean running = true;
     private final BufferedReader reader;
+    private Terminal terminal;
+    private LineReader lineReader;
 
     // ANSI color codes
     private static final String RESET = "\u001B[0m";
@@ -146,6 +153,21 @@ public class TUIClient {
         this.mcpClient = mcpClient;
         this.loopAgent = new LoopAgent(provider, mcpClient);
         this.reader = new BufferedReader(new InputStreamReader(System.in));
+
+        try {
+            this.terminal = TerminalBuilder.builder()
+                    .name("ArthasClaw")
+                    .build();
+            this.lineReader = LineReaderBuilder.builder()
+                    .terminal(terminal)
+                    .option(LineReader.Option.HISTORY_IGNORE_DUPS, true)
+                    .option(LineReader.Option.HISTORY_IGNORE_SPACE, true)
+                    .build();
+        } catch (IOException e) {
+            System.err.println("[-] Failed to initialize terminal: " + e.getMessage());
+            this.terminal = null;
+            this.lineReader = null;
+        }
     }
 
     public void start() {
@@ -155,17 +177,33 @@ public class TUIClient {
 
         while (running) {
             try {
-                System.out.print("\n" + CYAN + "arthasclaw> " + RESET);
-                String input = reader.readLine();
+                String prompt = "\n" + CYAN + "arthasclaw> " + RESET;
+                String input;
+
+                if (lineReader != null) {
+                    // Use JLine for advanced line editing (arrow keys, Ctrl+A/E, history)
+                    input = lineReader.readLine(prompt);
+                } else {
+                    // Fallback to basic BufferedReader
+                    System.out.print(prompt);
+                    input = reader.readLine();
+                }
 
                 if (input == null || input.trim().isEmpty()) {
                     continue;
+                }
+
+                // Add to JLine history if available
+                if (lineReader != null) {
+                    lineReader.getHistory().add(input.trim());
                 }
 
                 processCommand(input.trim());
 
             } catch (IOException e) {
                 System.err.println(RED + "[-] IO Error: " + e.getMessage() + RESET);
+            } catch (Exception e) {
+                System.err.println(RED + "[-] Error: " + e.getMessage() + RESET);
             }
         }
 
@@ -475,6 +513,13 @@ public class TUIClient {
             reader.close();
         } catch (IOException e) {
             // Ignore
+        }
+        if (terminal != null) {
+            try {
+                terminal.close();
+            } catch (IOException e) {
+                // Ignore
+            }
         }
     }
 }
