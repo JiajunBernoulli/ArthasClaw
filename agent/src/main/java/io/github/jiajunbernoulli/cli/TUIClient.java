@@ -26,8 +26,12 @@ import io.github.jiajunbernoulli.cli.bootstrap.BotArthas;
 import io.github.jiajunbernoulli.mcp.McpClient;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.concurrent.TimeUnit;
 
 import org.jline.reader.LineReader;
@@ -61,6 +65,14 @@ public class TUIClient {
     private static final String BLUE = "\u001B[34m";
     private static final String CYAN = "\u001B[36m";
     private static final String RED = "\u001B[31m";
+
+    // Directory paths
+    private static final String HOME_DIR = System.getProperty("user.home");
+    private static final String ARTHASCLAW_DIR = HOME_DIR + "/.arthasclaw";
+    private static final String SKILLS_DIR = ARTHASCLAW_DIR + "/skills";
+    private static final String MEMORY_DIR = ARTHASCLAW_DIR + "/memory";
+    private static final String WORKSPACE_DIR = ARTHASCLAW_DIR + "/workspace";
+    private static final String LOGS_DIR = ARTHASCLAW_DIR + "/logs";
 
     /**
      * Get environment variable or prompt user for input if not set.
@@ -102,6 +114,31 @@ public class TUIClient {
     }
 
     /**
+     * Initialize ArthasClaw directories in ~/.arthasclaw
+     * Creates: skills, memory, workspace, logs
+     */
+    private static void initDirectories() {
+        String[] dirs = {ARTHASCLAW_DIR, SKILLS_DIR, MEMORY_DIR, WORKSPACE_DIR, LOGS_DIR};
+        String[] names = {"home", "skills", "memory", "workspace", "logs"};
+
+        System.out.println("[*] Initializing ArthasClaw directories...");
+
+        for (int i = 0; i < dirs.length; i++) {
+            Path path = Paths.get(dirs[i]);
+            if (!Files.exists(path)) {
+                try {
+                    Files.createDirectories(path);
+                    System.out.println("[+] Created: ~/.arthasclaw/" + names[i]);
+                } catch (IOException e) {
+                    System.err.println("[-] Failed to create directory: " + dirs[i] + " - " + e.getMessage());
+                }
+            } else {
+                System.out.println("[+] Found: ~/.arthasclaw/" + names[i]);
+            }
+        }
+    }
+
+    /**
      * Main entry point for TUI client.
      * Attaches Arthas to target JVM and starts interactive session.
      */
@@ -114,16 +151,19 @@ public class TUIClient {
         String pid = args[0];
 
         try {
-            // 1. Attach Arthas via BotArthas bootstrap
+            // 1. Initialize directories
+            initDirectories();
+
+            // 2. Attach Arthas via BotArthas bootstrap
             BotArthas arthas = new BotArthas(pid);
             McpClient mcpClient = arthas.attach();
 
-            // 2. Print ready message
+            // 3. Print ready message
             System.out.println("\n=================================================");
             System.out.println("🚀 Agent is ready!");
             System.out.println("=================================================\n");
 
-            // 3. Setup AI provider from environment (with interactive input fallback)
+            // 4. Setup AI provider from environment (with interactive input fallback)
             String apiKey = getEnvOrPrompt("OPENAI_API_KEY", "Enter OPENAI_API_KEY: ", true);
             String baseUrl = getEnvOrPrompt("OPENAI_BASE_URL", "Enter OPENAI_BASE_URL (default: https://api.openai.com/v1): ", false);
             String model = getEnvOrPrompt("OPENAI_MODEL", "Enter OPENAI_MODEL (default: gpt-4o-mini): ", false);
@@ -136,7 +176,7 @@ public class TUIClient {
                 model = "gpt-4o-mini";
             }
 
-            // 4. Create provider and start TUI
+            // 5. Create provider and start TUI
             CompletionProvider provider = new OpenAICompletionProvider(apiKey, model, baseUrl);
             TUIClient tui = new TUIClient(provider, mcpClient);
             tui.start();
