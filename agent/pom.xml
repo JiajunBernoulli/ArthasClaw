@@ -139,7 +139,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>io.github.jiajunbernoulli.cli.TUIClient</mainClass>
+                            <mainClass>io.github.jiajunbernoulli.arthasclaw.cli.TUIClient</mainClass>
                         </manifest>
                     </archive>
                     <descriptorRefs>
