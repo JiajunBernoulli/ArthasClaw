@@ -84,6 +84,75 @@ arthasclaw> What methods does MathGame have?
 ```
 
 
+## Skill Management
+
+Skills are reusable prompt templates that enhance AI's capabilities for specific diagnostic tasks. You can install, list, enable, disable, and remove skills.
+
+### Skill Commands
+
+```
+/skill install <url|path>   Install a skill from URL or local file
+/skill list                 List installed skills
+/skill show <name>          Show skill details
+/skill enable <name>        Enable a skill
+/skill disable <name>       Disable a skill
+/skill remove <name>        Remove a skill
+```
+
+### Skill File Format
+
+Skill files support YAML front matter with markdown body:
+
+```yaml
+---
+name: deadlock-analyzer
+description: Detect and analyze thread deadlocks
+version: 1.0.0
+author: your-name
+tools:
+  - thread
+  - thread -b
+  - stack
+---
+You are a Java thread deadlock analysis expert.
+When analyzing thread issues:
+1. Use `thread -b` to find blocking threads
+2. Use `thread` for overall thread state
+3. Provide actionable solutions
+```
+
+### Example: Deadlock Detection
+
+1. **Start a deadlock demo**:
+   ```bash
+   cd examples/deadlock
+   javac -d classes DeadlockDemo.java
+   java -cp classes io.github.jiajunbernoulli.arthasclaw.examples.DeadlockDemo
+   ```
+
+2. **Install the deadlock-analyzer skill**:
+   ```
+   arthasclaw> /skill install examples/deadlock/deadlock-analyzer.md
+   [+] Skill installed: deadlock-analyzer v1.0.0
+       Description: Detect and analyze thread deadlocks
+   ```
+
+3. **Ask AI to analyze deadlock**:
+   ```
+   arthasclaw> Check for thread deadlock
+   ```
+
+The AI will automatically apply the skill's analysis workflow and use the specified Arthas tools.
+
+### Skill Storage
+
+Skills are stored in `~/.arthasclaw/skills/` directory. You can also install skills from URLs:
+
+```
+arthasclaw> /skill install https://example.com/skills/memory-analyzer.md
+```
+
+---
+
 # TODO
-- [] skill
-- [] memory
+- [ ] memory

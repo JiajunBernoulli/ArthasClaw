@@ -31,17 +31,49 @@ public class LoopAgent {
     private final McpClient mcpClient;
     private final ArrayNode messages;
     private ArrayNode toolsConfig;
+    private String skillsPrompt;
+
+    private static final String BASE_SYSTEM_PROMPT = "You are an expert Java diagnostic assistant. You have access to Arthas tools via MCP. Use the provided tools to inspect and diagnose the Java application.\n\nLanguage Rule: Always reply in the same language that the user used to ask the question. - If the input is Chinese, output Chinese. - If the input is English, output English. - Do not output translations unless explicitly asked.";
 
     public LoopAgent(CompletionProvider provider, McpClient mcpClient) {
         this.provider = provider;
         this.mcpClient = mcpClient;
         this.messages = mapper.createArrayNode();
+        this.skillsPrompt = "";
 
         // System prompt
+        updateSystemMessage();
+    }
+
+    /**
+     * Update the system message with skills prompt.
+     */
+    private void updateSystemMessage() {
+        // Remove existing system message if present
+        if (messages.size() > 0 && "system".equals(messages.get(0).get("role").asText())) {
+            messages.remove(0);
+        }
+
+        // Build system message with skills
+        StringBuilder systemContent = new StringBuilder(BASE_SYSTEM_PROMPT);
+        if (skillsPrompt != null && !skillsPrompt.isEmpty()) {
+            systemContent.append("\n\n---\n\n# Installed Skills\n\n").append(skillsPrompt);
+        }
+
         ObjectNode sysMsg = mapper.createObjectNode();
         sysMsg.put("role", "system");
-        sysMsg.put("content", "You are an expert Java diagnostic assistant. You have access to Arthas tools via MCP. Use the provided tools to inspect and diagnose the Java application.\n\nLanguage Rule: Always reply in the same language that the user used to ask the question. - If the input is Chinese, output Chinese. - If the input is English, output English. - Do not output translations unless explicitly asked.");
-        messages.add(sysMsg);
+        sysMsg.put("content", systemContent.toString());
+        messages.insert(0, sysMsg);
+    }
+
+    /**
+     * Set the combined skills prompt. This will update the system message.
+     *
+     * @param skillsPrompt the combined prompt from enabled skills
+     */
+    public void setSkillsPrompt(String skillsPrompt) {
+        this.skillsPrompt = skillsPrompt != null ? skillsPrompt : "";
+        updateSystemMessage();
     }
 
     /**

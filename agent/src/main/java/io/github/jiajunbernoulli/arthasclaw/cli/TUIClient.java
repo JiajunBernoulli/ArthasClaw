@@ -24,6 +24,8 @@ import io.github.jiajunbernoulli.arthasclaw.controller.providers.CompletionProvi
 import io.github.jiajunbernoulli.arthasclaw.controller.providers.OpenAICompletionProvider;
 import io.github.jiajunbernoulli.arthasclaw.cli.bootstrap.BotArthas;
 import io.github.jiajunbernoulli.arthasclaw.mcp.McpClient;
+import io.github.jiajunbernoulli.arthasclaw.skill.Skill;
+import io.github.jiajunbernoulli.arthasclaw.skill.SkillManager;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -32,6 +34,7 @@ import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import org.jline.reader.LineReader;
@@ -45,12 +48,13 @@ import org.jline.terminal.TerminalBuilder;
  * - Default: Natural language query (handled by AI)
  * - ! prefix: Execute shell command
  * - $ prefix: Execute Arthas command via MCP
- * - / prefix: System commands (quit, help, etc.)
+ * - / prefix: System commands (quit, help, skill, etc.)
  */
 public class TUIClient {
     private final CompletionProvider provider;
     private final McpClient mcpClient;
     private final LoopAgent loopAgent;
+    private final SkillManager skillManager;
     private final ObjectMapper mapper = new ObjectMapper();
     private ArrayNode toolsConfig;
     private boolean running = true;
@@ -192,6 +196,7 @@ public class TUIClient {
         this.provider = provider;
         this.mcpClient = mcpClient;
         this.loopAgent = new LoopAgent(provider, mcpClient);
+        this.skillManager = new SkillManager();
         this.reader = new BufferedReader(new InputStreamReader(System.in));
 
         try {
@@ -214,6 +219,9 @@ public class TUIClient {
         printWelcome();
         loopAgent.init();
         fetchToolsList();
+
+        // Load enabled skills into LoopAgent
+        updateLoopAgentSkills();
 
         while (running) {
             try {
@@ -260,7 +268,7 @@ public class TUIClient {
         System.out.println("  " + YELLOW + "<natural lang>" + RESET + "  - AI-powered diagnosis (default)");
         System.out.println("  " + YELLOW + "!<command>" + RESET + "     - Execute shell command (e.g., !ls -la)");
         System.out.println("  " + YELLOW + "$<command>" + RESET + "     - Execute Arthas command (e.g., $thread)");
-        System.out.println("  " + YELLOW + "/<command>" + RESET + "     - System commands (e.g., /help, /quit)");
+        System.out.println("  " + YELLOW + "/<command>" + RESET + "     - System commands (e.g., /help, /quit, /skill)");
         System.out.println();
     }
 
@@ -277,7 +285,7 @@ public class TUIClient {
     }
 
     /**
-     * Handle system commands (/help, /quit, /clear, /tools)
+     * Handle system commands (/help, /quit, /clear, /tools, /skill)
      */
     private void handleSystemCommand(String cmd) {
         String[] parts = cmd.split("\\s+", 2);
@@ -315,6 +323,10 @@ public class TUIClient {
                 System.out.println("ArthasClaw TUI v1.0.0");
                 break;
 
+            case "skill":
+                handleSkillCommand(args);
+                break;
+
             default:
                 System.out.println(RED + "[-] Unknown system command: /" + command + RESET);
                 System.out.println(YELLOW + "    Type /help to see available commands" + RESET);
@@ -323,9 +335,9 @@ public class TUIClient {
 
     private void printHelp() {
         System.out.println();
-        System.out.println(CYAN + "════════════════════════════════════════════════���═══════" + RESET);
+        System.out.println(CYAN + "══════════════════════════════════════════════════════════" + RESET);
         System.out.println(CYAN + "                      Help                               " + RESET);
-        System.out.println(CYAN + "════════════════════════════════════════════════════════" + RESET);
+        System.out.println(CYAN + "══════════════════════════════════════════════════════════" + RESET);
         System.out.println();
         System.out.println("[System Commands] /<command>");
         System.out.println("  /help, /h, /?     Show this help");
@@ -334,6 +346,14 @@ public class TUIClient {
         System.out.println("  /tools            List available tools");
         System.out.println("  /history          Show conversation history");
         System.out.println("  /version          Show version info");
+        System.out.println();
+        System.out.println("[Skill Commands] /skill <subcommand>");
+        System.out.println("  /skill install <url|path>  Install a skill from URL or local file");
+        System.out.println("  /skill list               List installed skills");
+        System.out.println("  /skill show <name>        Show skill details");
+        System.out.println("  /skill enable <name>      Enable a skill");
+        System.out.println("  /skill disable <name>     Disable a skill");
+        System.out.println("  /skill remove <name>      Remove a skill");
         System.out.println();
         System.out.println("[Shell Commands] !<command>");
         System.out.println("  !ls -la           List files in current directory");
@@ -351,6 +371,160 @@ public class TUIClient {
         System.out.println("  Check for thread deadlock");
         System.out.println("  Analyze memory usage");
         System.out.println();
+    }
+
+    /**
+     * Handle skill commands (/skill install|list|show|enable|disable|remove)
+     */
+    private void handleSkillCommand(String args) {
+        if (args.isEmpty()) {
+            System.out.println(RED + "[-] Usage: /skill <install|list|show|enable|disable|remove> [args]" + RESET);
+            return;
+        }
+
+        String[] parts = args.split("\\s+", 2);
+        String subCommand = parts[0].toLowerCase();
+        String subArgs = parts.length > 1 ? parts[1] : "";
+
+        switch (subCommand) {
+            case "install":
+                installSkill(subArgs);
+                break;
+
+            case "list":
+            case "ls":
+                listSkills();
+                break;
+
+            case "show":
+                showSkill(subArgs);
+                break;
+
+            case "enable":
+                enableSkill(subArgs);
+                break;
+
+            case "disable":
+                disableSkill(subArgs);
+                break;
+
+            case "remove":
+            case "rm":
+                removeSkill(subArgs);
+                break;
+
+            default:
+                System.out.println(RED + "[-] Unknown skill command: " + subCommand + RESET);
+                System.out.println(YELLOW + "    Available: install, list, show, enable, disable, remove" + RESET);
+        }
+    }
+
+    private void installSkill(String source) {
+        if (source.isEmpty()) {
+            System.out.println(RED + "[-] Usage: /skill install <url|path>" + RESET);
+            return;
+        }
+
+        System.out.println(YELLOW + "[*] Installing skill from: " + source + RESET);
+        try {
+            Skill skill = skillManager.install(source);
+            System.out.println(GREEN + "[+] Skill installed: " + skill.getName() +
+                    (skill.getVersion() != null ? " v" + skill.getVersion() : "") + RESET);
+            if (skill.getDescription() != null) {
+                System.out.println("    Description: " + skill.getDescription());
+            }
+            // Update LoopAgent with new skills
+            updateLoopAgentSkills();
+        } catch (Exception e) {
+            System.out.println(RED + "[-] Failed to install skill: " + e.getMessage() + RESET);
+        }
+    }
+
+    private void listSkills() {
+        List<Skill> skills = skillManager.listAll();
+        if (skills.isEmpty()) {
+            System.out.println(YELLOW + "[!] No skills installed" + RESET);
+            System.out.println("    Use /skill install <url|path> to install a skill");
+            return;
+        }
+
+        System.out.println();
+        System.out.println(CYAN + "Installed Skills (" + skills.size() + "):" + RESET);
+        System.out.println();
+        for (Skill skill : skills) {
+            System.out.println(skill.getSummary());
+        }
+        System.out.println();
+    }
+
+    private void showSkill(String name) {
+        if (name.isEmpty()) {
+            System.out.println(RED + "[-] Usage: /skill show <name>" + RESET);
+            return;
+        }
+
+        skillManager.get(name).ifPresentOrElse(
+                skill -> {
+                    System.out.println();
+                    System.out.println(CYAN + "Skill Details:" + RESET);
+                    System.out.println(skill.getDetails());
+                },
+                () -> System.out.println(RED + "[-] Skill not found: " + name + RESET)
+        );
+    }
+
+    private void enableSkill(String name) {
+        if (name.isEmpty()) {
+            System.out.println(RED + "[-] Usage: /skill enable <name>" + RESET);
+            return;
+        }
+
+        if (skillManager.enable(name)) {
+            System.out.println(GREEN + "[+] Skill enabled: " + name + RESET);
+            updateLoopAgentSkills();
+        } else {
+            System.out.println(RED + "[-] Skill not found: " + name + RESET);
+        }
+    }
+
+    private void disableSkill(String name) {
+        if (name.isEmpty()) {
+            System.out.println(RED + "[-] Usage: /skill disable <name>" + RESET);
+            return;
+        }
+
+        if (skillManager.disable(name)) {
+            System.out.println(GREEN + "[+] Skill disabled: " + name + RESET);
+            updateLoopAgentSkills();
+        } else {
+            System.out.println(RED + "[-] Skill not found: " + name + RESET);
+        }
+    }
+
+    private void removeSkill(String name) {
+        if (name.isEmpty()) {
+            System.out.println(RED + "[-] Usage: /skill remove <name>" + RESET);
+            return;
+        }
+
+        try {
+            if (skillManager.remove(name)) {
+                System.out.println(GREEN + "[+] Skill removed: " + name + RESET);
+                updateLoopAgentSkills();
+            } else {
+                System.out.println(RED + "[-] Skill not found: " + name + RESET);
+            }
+        } catch (Exception e) {
+            System.out.println(RED + "[-] Failed to remove skill: " + e.getMessage() + RESET);
+        }
+    }
+
+    /**
+     * Update LoopAgent with current enabled skills.
+     */
+    private void updateLoopAgentSkills() {
+        String combinedPrompt = skillManager.getCombinedPrompt();
+        loopAgent.setSkillsPrompt(combinedPrompt);
     }
 
     private void listTools() {
