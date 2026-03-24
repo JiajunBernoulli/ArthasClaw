@@ -172,13 +172,26 @@ log_success "Deployment successful!"
 echo ""
 
 # ============================================
-# Step 6: Commit version change (if any)
+# Step 6: Update version in scripts and commit
 # ============================================
 cd "$SCRIPT_DIR"
 
 if [ -n "$1" ]; then
+    log_info "Updating version in scripts..."
+    
+    # Update start.sh
+    START_SH="$SCRIPT_DIR/start.sh"
+    sed -i "s|arthas-claw/[0-9]\+\.[0-9]\+\.[0-9]\+/|arthas-claw/${CURRENT_VERSION}/|g" "$START_SH"
+    sed -i "s|arthas-claw-[0-9]\+\.[0-9]\+\.[0-9]\+-jar|arthas-claw-${CURRENT_VERSION}-jar|g" "$START_SH"
+    log_success "Updated start.sh"
+    
+    # Update integration_test.sh
+    INTEGRATION_TEST_SH="$SCRIPT_DIR/integration_test.sh"
+    sed -i "s|arthas-claw-[0-9]\+\.[0-9]\+\.[0-9]\+\(-[a-zA-Z0-9]\+\)\?-jar|arthas-claw-${CURRENT_VERSION}-jar|g" "$INTEGRATION_TEST_SH"
+    log_success "Updated integration_test.sh"
+    
     log_info "Committing version change..."
-    git add agent/pom.xml
+    git add agent/pom.xml start.sh integration_test.sh
     git commit -m "chore: release version $CURRENT_VERSION"
     log_success "Version change committed"
 fi
