@@ -64,8 +64,8 @@ tools:
 1. **启动死锁演示程序**：
    ```bash
    cd examples/deadlock
-   javac -d classes DeadlockDemo.java
-   java -cp classes io.github.jiajunbernoulli.arthasclaw.examples.DeadlockDemo
+   javac -d . DeadlockDemo.java
+   java -cp . io.github.jiajunbernoulli.arthasclaw.examples.DeadlockDemo
    ```
 
 2. **安装死锁分析技能**：
@@ -87,7 +87,7 @@ AI 将自动应用技能中的分析流程，使用指定的 Arthas 工具进行
 技能存储在 `~/.arthasclaw/skills/` 目录下。你也可以从 URL 安装技能：
 
 ```
-arthasclaw> /skill install https://example.com/skills/memory-analyzer.md
+arthasclaw> /skill install https://raw.githubusercontent.com/JiajunBernoulli/ArthasClaw/main/skills/deadlock-analyzer.md
 ```
 
 ## 快速开始

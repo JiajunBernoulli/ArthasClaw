@@ -126,8 +126,8 @@ When analyzing thread issues:
 1. **Start a deadlock demo**:
    ```bash
    cd examples/deadlock
-   javac -d classes DeadlockDemo.java
-   java -cp classes io.github.jiajunbernoulli.arthasclaw.examples.DeadlockDemo
+   javac -d . DeadlockDemo.java
+   java -cp . io.github.jiajunbernoulli.arthasclaw.examples.DeadlockDemo
    ```
 
 2. **Install the deadlock-analyzer skill**:
@@ -149,7 +149,7 @@ The AI will automatically apply the skill's analysis workflow and use the specif
 Skills are stored in `~/.arthasclaw/skills/` directory. You can also install skills from URLs:
 
 ```
-arthasclaw> /skill install https://example.com/skills/memory-analyzer.md
+arthasclaw> /skill install https://raw.githubusercontent.com/JiajunBernoulli/ArthasClaw/main/skills/deadlock-analyzer.md
 ```
 
 ---
