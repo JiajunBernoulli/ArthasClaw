@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.github.jiajunbernoulli.arthasclaw.controller.providers.CompletionProvider;
 import io.github.jiajunbernoulli.arthasclaw.mcp.McpClient;
 
+import java.io.IOException;
 import java.util.Scanner;
 import java.util.concurrent.TimeUnit;
 
@@ -36,9 +37,13 @@ public class LoopAgent {
     private static final String BASE_SYSTEM_PROMPT = "You are an expert Java diagnostic assistant. You have access to Arthas tools via MCP. Use the provided tools to inspect and diagnose the Java application.\n\nLanguage Rule: Always reply in the same language that the user used to ask the question. - If the input is Chinese, output Chinese. - If the input is English, output English. - Do not output translations unless explicitly asked.";
 
     // Limits to prevent infinite loops and unbounded message growth
-    // Configurable via environment variables with sensible defaults
+    // Configurable via JVM system properties with sensible defaults
     private static final int MAX_ITERATIONS = Integer.getInteger("ARTHASCLAW_MAX_ITERATIONS", 20);
     private static final int MAX_MESSAGES = Integer.getInteger("ARTHASCLAW_MAX_MESSAGES", 50);
+    private static final int MAX_RETRIES = Integer.getInteger("ARTHASCLAW_MAX_RETRIES", 3);
+    private static final long LIST_TOOLS_TIMEOUT_SECONDS = Long.getLong("ARTHASCLAW_LIST_TOOLS_TIMEOUT", 5);
+    private static final long TOOL_CALL_TIMEOUT_SECONDS = Long.getLong("ARTHASCLAW_TOOL_CALL_TIMEOUT", 30);
+    private static final long RETRY_DELAY_MS = Long.getLong("ARTHASCLAW_RETRY_DELAY_MS", 1000);
 
     public LoopAgent(CompletionProvider provider, McpClient mcpClient) {
         this.provider = provider;
@@ -84,9 +89,11 @@ public class LoopAgent {
     /**
      * Initialize the agent by fetching tools from MCP.
      * Should be called before processing queries.
+     * @return true if initialization succeeded, false otherwise
      */
-    public void init() {
+    public boolean init() {
         this.toolsConfig = fetchToolsFromMcp();
+        return toolsConfig != null && toolsConfig.size() > 0;
     }
 
     /**
@@ -111,7 +118,9 @@ public class LoopAgent {
         Scanner scanner = new Scanner(System.in);
 
         // Fetch tools from MCP
-        init();
+        if (!init()) {
+            System.err.println("[-] Warning: Failed to load tools from Arthas. Some functionality may be limited.");
+        }
 
         while (true) {
             System.out.print("\n> ");
@@ -137,39 +146,60 @@ public class LoopAgent {
 
     private ArrayNode fetchToolsFromMcp() {
         System.out.println("[*] Fetching tools from Arthas MCP Server...");
-        try {
-            JsonNode result = mcpClient.listTools().get(5, TimeUnit.SECONDS);
-            JsonNode toolsList = result.get("tools");
+        
+        Exception lastException = null;
+        for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+            try {
+                JsonNode result = mcpClient.listTools().get(LIST_TOOLS_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                JsonNode toolsList = result.get("tools");
 
-            ArrayNode openAiTools = mapper.createArrayNode();
+                ArrayNode openAiTools = mapper.createArrayNode();
 
-            if (toolsList != null && toolsList.isArray()) {
-                for (JsonNode tool : toolsList) {
-                    ObjectNode aiTool = mapper.createObjectNode();
-                    aiTool.put("type", "function");
-                    ObjectNode function = mapper.createObjectNode();
-                    function.put("name", tool.get("name").asText());
-                    function.put("description", tool.get("description").asText());
+                if (toolsList != null && toolsList.isArray()) {
+                    for (JsonNode tool : toolsList) {
+                        ObjectNode aiTool = mapper.createObjectNode();
+                        aiTool.put("type", "function");
+                        ObjectNode function = mapper.createObjectNode();
+                        function.put("name", tool.get("name").asText());
+                        function.put("description", tool.get("description").asText());
 
-                    if (tool.has("inputSchema")) {
-                        function.set("parameters", tool.get("inputSchema"));
-                    } else {
-                        // Empty params
-                        ObjectNode params = mapper.createObjectNode();
-                        params.put("type", "object");
-                        params.set("properties", mapper.createObjectNode());
-                        function.set("parameters", params);
+                        if (tool.has("inputSchema")) {
+                            function.set("parameters", tool.get("inputSchema"));
+                        } else {
+                            // Empty params
+                            ObjectNode params = mapper.createObjectNode();
+                            params.put("type", "object");
+                            params.set("properties", mapper.createObjectNode());
+                            function.set("parameters", params);
+                        }
+                        aiTool.set("function", function);
+                        openAiTools.add(aiTool);
                     }
-                    aiTool.set("function", function);
-                    openAiTools.add(aiTool);
+                }
+                System.out.println("[+] Loaded " + openAiTools.size() + " tools from Arthas.");
+                return openAiTools;
+            } catch (java.util.concurrent.TimeoutException e) {
+                lastException = e;
+                System.err.println("[-] Attempt " + attempt + "/" + MAX_RETRIES + ": Timeout fetching tools");
+            } catch (Exception e) {
+                lastException = e;
+                System.err.println("[-] Attempt " + attempt + "/" + MAX_RETRIES + ": " + e.getMessage());
+            }
+            
+            // Wait before retry (except last attempt)
+            if (attempt < MAX_RETRIES) {
+                try {
+                    Thread.sleep(RETRY_DELAY_MS);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    break;
                 }
             }
-            System.out.println("[+] Loaded " + openAiTools.size() + " tools from Arthas.");
-            return openAiTools;
-        } catch (Exception e) {
-            System.err.println("[-] Failed to fetch tools: " + e.getMessage());
-            return mapper.createArrayNode();
         }
+        
+        System.err.println("[-] Failed to fetch tools after " + MAX_RETRIES + " attempts: " + 
+            (lastException != null ? lastException.getMessage() : "unknown error"));
+        return mapper.createArrayNode();
     }
 
     private void processAiResponse() {
@@ -204,7 +234,7 @@ public class LoopAgent {
                         // Execute via MCP
                         String toolResultStr;
                         try {
-                            JsonNode mcpResult = mcpClient.callTool(functionName, arguments).get(30, TimeUnit.SECONDS);
+                            JsonNode mcpResult = mcpClient.callTool(functionName, arguments).get(TOOL_CALL_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
                             // Extract text content from MCP result
                             StringBuilder sb = new StringBuilder();
@@ -239,8 +269,23 @@ public class LoopAgent {
 
                 // No tool calls, conversation turn ends
                 break;
+            } catch (IOException e) {
+                // Check for authentication errors (non-retryable)
+                String message = e.getMessage();
+                if (message != null && (message.contains("401") || message.contains("403") || message.contains("auth"))) {
+                    System.err.println("[-] Authentication failed: " + message + ". Check your API key.");
+                    break;
+                }
+                // Timeout or connection errors
+                if (message != null && (message.contains("timeout") || message.contains("Timeout"))) {
+                    System.err.println("[-] Request timeout. Please try again.");
+                    break;
+                }
+                // Other IO errors
+                System.err.println("[-] Request failed: " + message);
+                break;
             } catch (Exception e) {
-                System.err.println("[-] Request failed: " + e.getMessage());
+                System.err.println("[-] Unexpected error: " + e.getMessage());
                 break;
             }
         }
