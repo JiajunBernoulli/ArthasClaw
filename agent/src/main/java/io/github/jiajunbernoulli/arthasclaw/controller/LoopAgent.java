@@ -35,6 +35,11 @@ public class LoopAgent {
 
     private static final String BASE_SYSTEM_PROMPT = "You are an expert Java diagnostic assistant. You have access to Arthas tools via MCP. Use the provided tools to inspect and diagnose the Java application.\n\nLanguage Rule: Always reply in the same language that the user used to ask the question. - If the input is Chinese, output Chinese. - If the input is English, output English. - Do not output translations unless explicitly asked.";
 
+    // Limits to prevent infinite loops and unbounded message growth
+    // Configurable via environment variables with sensible defaults
+    private static final int MAX_ITERATIONS = Integer.getInteger("ARTHASCLAW_MAX_ITERATIONS", 20);
+    private static final int MAX_MESSAGES = Integer.getInteger("ARTHASCLAW_MAX_MESSAGES", 50);
+
     public LoopAgent(CompletionProvider provider, McpClient mcpClient) {
         this.provider = provider;
         this.mcpClient = mcpClient;
@@ -168,8 +173,12 @@ public class LoopAgent {
     }
 
     private void processAiResponse() {
-        while (true) {
+        int iteration = 0;
+        while (iteration++ < MAX_ITERATIONS) {
             try {
+                // Trim message history to prevent unbounded growth
+                trimMessages();
+
                 ObjectNode message = provider.chatCompletion(messages, toolsConfig);
 
                 // Add assistant message to history
@@ -234,6 +243,21 @@ public class LoopAgent {
                 System.err.println("[-] Request failed: " + e.getMessage());
                 break;
             }
+        }
+
+        if (iteration > MAX_ITERATIONS) {
+            System.err.println("[-] Reached max iterations (" + MAX_ITERATIONS + "), stopping to prevent infinite loop.");
+        }
+    }
+
+    /**
+     * Trim message history to prevent unbounded growth.
+     * Keeps system prompt (first message) and recent messages up to MAX_MESSAGES.
+     */
+    private void trimMessages() {
+        while (messages.size() > MAX_MESSAGES && messages.size() > 1) {
+            // Remove oldest non-system message (index 1, since index 0 is system)
+            messages.remove(1);
         }
     }
 

@@ -73,6 +73,11 @@ export OPENAI_MODEL=gpt-4o-mini
 # Run with target PID
 cd agent/target
 java -jar bot-1.0.0-jar-with-dependencies.jar <PID>
+
+# Optional: adjust loop limits via JVM system properties
+# - DARTHASCLAW_MAX_ITERATIONS: max tool call iterations per request (default: 20)
+# - DARTHASCLAW_MAX_MESSAGES: max messages in conversation history (default: 50)
+java -DARTHASCLAW_MAX_ITERATIONS=30 -DARTHASCLAW_MAX_MESSAGES=100 -jar bot-1.0.0-jar-with-dependencies.jar <PID>
 ```
 
 ### 5. Ask Natural Language Questions
