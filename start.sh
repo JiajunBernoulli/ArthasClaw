@@ -2,8 +2,8 @@
 # ArthasClaw One-Click Startup Script
 # Usage: ./start.sh [question]
 
-JAR_URL="https://repo1.maven.org/maven2/io/github/jiajunbernoulli/arthas-claw/0.0.4/arthas-claw-0.0.4-jar-with-dependencies.jar"
-JAR_NAME="arthas-claw-0.0.4-jar-with-dependencies.jar"
+JAR_URL="https://repo1.maven.org/maven2/io/github/jiajunbernoulli/arthas-claw/0.0.5/arthas-claw-0.0.5-jar-with-dependencies.jar"
+JAR_NAME="arthas-claw-0.0.5-jar-with-dependencies.jar"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 JAR_PATH="$SCRIPT_DIR/$JAR_NAME"
 
