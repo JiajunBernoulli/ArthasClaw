@@ -20,12 +20,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.github.jiajunbernoulli.arthasclaw.config.Config;
+import io.github.jiajunbernoulli.arthasclaw.context.SessionContext;
 import io.github.jiajunbernoulli.arthasclaw.controller.LoopAgent;
 import io.github.jiajunbernoulli.arthasclaw.controller.providers.CompletionProvider;
 import io.github.jiajunbernoulli.arthasclaw.controller.providers.OpenAICompletionProvider;
 import io.github.jiajunbernoulli.arthasclaw.cli.bootstrap.BotArthas;
 import io.github.jiajunbernoulli.arthasclaw.mcp.McpClient;
 import io.github.jiajunbernoulli.arthasclaw.skill.SkillManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -47,6 +50,8 @@ import static io.github.jiajunbernoulli.arthasclaw.cli.DisplayHelper.*;
  * Entry point and main loop for the interactive diagnostic tool.
  */
 public class TUIClient {
+    private static final Logger log = LoggerFactory.getLogger(TUIClient.class);
+    
     private final CompletionProvider provider;
     private final McpClient mcpClient;
     private final LoopAgent loopAgent;
@@ -57,6 +62,7 @@ public class TUIClient {
     private final BufferedReader reader;
     private Terminal terminal;
     private LineReader lineReader;
+    private final SessionContext sessionContext;
 
     /**
      * Main entry point for TUI client.
@@ -116,7 +122,14 @@ public class TUIClient {
         this.provider = provider;
         this.mcpClient = mcpClient;
         this.config = config;
+        
+        // Create session context
+        this.sessionContext = new SessionContext();
+        log.info("Session started: {}", sessionContext.getSessionId());
+        
         this.loopAgent = new LoopAgent(provider, mcpClient, config);
+        this.loopAgent.setSessionContext(this.sessionContext);
+        
         this.skillManager = new SkillManager();
         this.dispatcher = new CommandDispatcher(loopAgent, mcpClient, skillManager, config, mapper);
         this.reader = new BufferedReader(new InputStreamReader(System.in));
@@ -255,6 +268,7 @@ public class TUIClient {
      * Fetch tools list from MCP and update dispatcher.
      */
     private void fetchToolsList() {
+        log.debug("Loading Arthas tools...");
         System.out.println("[*] Loading Arthas tools...");
         try {
             JsonNode result = mcpClient.listTools().get(
@@ -284,8 +298,10 @@ public class TUIClient {
                 }
             }
             dispatcher.setToolsConfig(toolsConfig);
+            log.info("Loaded {} Arthas tools", toolsConfig.size());
             System.out.println(GREEN + "[+] Loaded " + toolsConfig.size() + " tools" + RESET);
         } catch (Exception e) {
+            log.error("Failed to load tools: {}", e.getMessage(), e);
             System.err.println(RED + "[-] Failed to load tools: " + e.getMessage() + RESET);
         }
     }
@@ -302,6 +318,7 @@ public class TUIClient {
      * Cleanup resources on shutdown.
      */
     private void cleanup() {
+        log.info("Session ended: {}", sessionContext.getSessionId());
         printInfo("[*] Shutting down...");
         loopAgent.close();
         try {
@@ -316,5 +333,7 @@ public class TUIClient {
                 // Ignore
             }
         }
+        // Close session context (clears MDC)
+        sessionContext.close();
     }
 }

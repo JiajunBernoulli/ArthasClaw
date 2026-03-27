@@ -20,20 +20,26 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.github.jiajunbernoulli.arthasclaw.config.Config;
+import io.github.jiajunbernoulli.arthasclaw.context.SessionContext;
 import io.github.jiajunbernoulli.arthasclaw.controller.providers.CompletionProvider;
 import io.github.jiajunbernoulli.arthasclaw.mcp.McpClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Scanner;
 import java.util.concurrent.TimeUnit;
 
 public class LoopAgent {
+    private static final Logger log = LoggerFactory.getLogger(LoopAgent.class);
+    
     private final CompletionProvider provider;
     private final ObjectMapper mapper = new ObjectMapper();
     private final McpClient mcpClient;
     private final ArrayNode messages;
     private ArrayNode toolsConfig;
     private String skillsPrompt;
+    private SessionContext sessionContext;
 
     // Configuration values
     private final int maxIterations;
@@ -125,6 +131,15 @@ public class LoopAgent {
     }
 
     /**
+     * Set the session context for this agent.
+     * 
+     * @param sessionContext the session context
+     */
+    public void setSessionContext(SessionContext sessionContext) {
+        this.sessionContext = sessionContext;
+    }
+
+    /**
      * Process a single query and return the response.
      * @param input the user query
      */
@@ -133,12 +148,30 @@ public class LoopAgent {
             return;
         }
 
+        // Start request context
+        String requestId = "-";
+        if (sessionContext != null) {
+            requestId = sessionContext.startRequest();
+        }
+
+        // Log user input (truncate if too long)
+        String truncatedInput = input.length() > 200 ? input.substring(0, 200) + "..." : input;
+        log.info("[{}] User query: {}", requestId, truncatedInput);
+
         ObjectNode userMsg = mapper.createObjectNode();
         userMsg.put("role", "user");
         userMsg.put("content", input);
         messages.add(userMsg);
 
-        processAiResponse();
+        try {
+            processAiResponse();
+        } finally {
+            // End request context
+            if (sessionContext != null) {
+                sessionContext.endRequest();
+            }
+            log.debug("[{}] Request completed", requestId);
+        }
     }
 
     public void startInteractiveLoop() {
@@ -173,6 +206,7 @@ public class LoopAgent {
     }
 
     private ArrayNode fetchToolsFromMcp() {
+        log.info("Fetching tools from Arthas MCP Server...");
         System.out.println("[*] Fetching tools from Arthas MCP Server...");
         
         Exception lastException = null;
@@ -204,13 +238,16 @@ public class LoopAgent {
                         openAiTools.add(aiTool);
                     }
                 }
+                log.info("Successfully loaded {} tools from Arthas", openAiTools.size());
                 System.out.println("[+] Loaded " + openAiTools.size() + " tools from Arthas.");
                 return openAiTools;
             } catch (java.util.concurrent.TimeoutException e) {
                 lastException = e;
+                log.warn("Attempt {}/{}: Timeout fetching tools", attempt, maxRetries);
                 System.err.println("[-] Attempt " + attempt + "/" + maxRetries + ": Timeout fetching tools");
             } catch (Exception e) {
                 lastException = e;
+                log.warn("Attempt {}/{}: {}", attempt, maxRetries, e.getMessage());
                 System.err.println("[-] Attempt " + attempt + "/" + maxRetries + ": " + e.getMessage());
             }
             
@@ -225,6 +262,8 @@ public class LoopAgent {
             }
         }
         
+        log.error("Failed to fetch tools after {} attempts: {}", maxRetries, 
+                lastException != null ? lastException.getMessage() : "unknown error");
         System.err.println("[-] Failed to fetch tools after " + maxRetries + " attempts: " + 
             (lastException != null ? lastException.getMessage() : "unknown error"));
         return mapper.createArrayNode();
@@ -233,11 +272,23 @@ public class LoopAgent {
     private void processAiResponse() {
         int iteration = 0;
         while (iteration++ < maxIterations) {
+            // Set iteration in context
+            if (sessionContext != null) {
+                sessionContext.setIteration(iteration);
+            }
+            
+            long iterationStartTime = System.currentTimeMillis();
+            log.debug("Iteration {} started", iteration);
+
             try {
                 // Trim message history to prevent unbounded growth
                 trimMessages();
 
+                // Call LLM with timing
+                long llmStartTime = System.currentTimeMillis();
                 ObjectNode message = provider.chatCompletion(messages, toolsConfig);
+                long llmDuration = System.currentTimeMillis() - llmStartTime;
+                log.info("LLM call completed in {}ms", llmDuration);
 
                 // Add assistant message to history
                 messages.add(message);
@@ -250,19 +301,26 @@ public class LoopAgent {
                 // Handle tool calls
                 if (message.has("tool_calls")) {
                     JsonNode toolCalls = message.get("tool_calls");
+                    int toolCallCount = toolCalls.size();
+                    log.info("AI requested {} tool call(s)", toolCallCount);
+
                     for (JsonNode toolCall : toolCalls) {
                         String toolCallId = toolCall.get("id").asText();
                         String functionName = toolCall.get("function").get("name").asText();
                         String functionArgsStr = toolCall.get("function").get("arguments").asText();
 
+                        // Log tool call details
+                        log.info("Tool call: {} with args: {}", functionName, functionArgsStr);
                         System.out.println("[*] Calling tool: " + functionName + " with args: " + functionArgsStr);
 
                         ObjectNode arguments = (ObjectNode) mapper.readTree(functionArgsStr);
 
-                        // Execute via MCP
+                        // Execute via MCP with timing
                         String toolResultStr;
+                        long toolStartTime = System.currentTimeMillis();
                         try {
                             JsonNode mcpResult = mcpClient.callTool(functionName, arguments).get(toolCallTimeoutSeconds, TimeUnit.SECONDS);
+                            long toolDuration = System.currentTimeMillis() - toolStartTime;
 
                             // Extract text content from MCP result
                             StringBuilder sb = new StringBuilder();
@@ -277,17 +335,27 @@ public class LoopAgent {
                             }
                             toolResultStr = sb.toString().trim();
                             if (toolResultStr.isEmpty()) toolResultStr = "Success (No output)";
+
+                            // Log tool result
+                            log.info("Tool {} completed in {}ms, result length: {} chars", 
+                                    functionName, toolDuration, toolResultStr.length());
                         } catch (Exception e) {
+                            long toolDuration = System.currentTimeMillis() - toolStartTime;
                             toolResultStr = "Error executing tool: " + e.getMessage();
+                            log.error("Tool {} failed after {}ms: {}", functionName, toolDuration, e.getMessage());
                         }
 
                         System.out.println("[*] Tool result length: " + toolResultStr.length() + " chars");
 
                         // Truncate tool result if too long to save tokens
+                        boolean wasTruncated = false;
+                        int originalLength = toolResultStr.length();
                         if (toolResultStr.length() > maxToolResultLength) {
                             String truncated = toolResultStr.substring(0, maxToolResultLength);
-                            toolResultStr = truncated + "\n... [TRUNCATED: result too long, showing first " + maxToolResultLength + " chars of " + toolResultStr.length() + "]";
+                            toolResultStr = truncated + "\n... [TRUNCATED: result too long, showing first " + maxToolResultLength + " chars of " + originalLength + "]";
                             System.out.println("[!] Tool result truncated to " + maxToolResultLength + " chars");
+                            wasTruncated = true;
+                            log.warn("Tool result truncated: original={} chars, truncated={} chars", originalLength, maxToolResultLength);
                         }
 
                         // Add tool result to messages
@@ -298,34 +366,45 @@ public class LoopAgent {
                         toolMsg.put("content", toolResultStr);
                         messages.add(toolMsg);
                     }
+
+                    long iterationDuration = System.currentTimeMillis() - iterationStartTime;
+                    log.debug("Iteration {} completed in {}ms with {} tool calls", iteration, iterationDuration, toolCallCount);
+                    
                     // Loop continues to send tool results back to AI
                     continue;
                 }
 
                 // No tool calls, conversation turn ends
+                long iterationDuration = System.currentTimeMillis() - iterationStartTime;
+                log.info("Request completed in {} iterations, {}ms total", iteration, iterationDuration);
                 break;
             } catch (IOException e) {
                 // Check for authentication errors (non-retryable)
-                String message = e.getMessage();
-                if (message != null && (message.contains("401") || message.contains("403") || message.contains("auth"))) {
-                    System.err.println("[-] Authentication failed: " + message + ". Check your API key.");
+                String errorMessage = e.getMessage();
+                if (errorMessage != null && (errorMessage.contains("401") || errorMessage.contains("403") || errorMessage.contains("auth"))) {
+                    log.error("Authentication failed: {}", errorMessage);
+                    System.err.println("[-] Authentication failed: " + errorMessage + ". Check your API key.");
                     break;
                 }
                 // Timeout or connection errors
-                if (message != null && (message.contains("timeout") || message.contains("Timeout"))) {
+                if (errorMessage != null && (errorMessage.contains("timeout") || errorMessage.contains("Timeout"))) {
+                    log.error("Request timeout: {}", errorMessage);
                     System.err.println("[-] Request timeout. Please try again.");
                     break;
                 }
                 // Other IO errors
-                System.err.println("[-] Request failed: " + message);
+                log.error("Request failed: {}", errorMessage, e);
+                System.err.println("[-] Request failed: " + errorMessage);
                 break;
             } catch (Exception e) {
+                log.error("Unexpected error: {}", e.getMessage(), e);
                 System.err.println("[-] Unexpected error: " + e.getMessage());
                 break;
             }
         }
 
         if (iteration > maxIterations) {
+            log.warn("Reached max iterations ({})", maxIterations);
             System.err.println("[-] Reached max iterations (" + maxIterations + "), stopping to prevent infinite loop.");
         }
     }
