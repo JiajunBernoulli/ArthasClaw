@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.github.jiajunbernoulli.arthasclaw.config.Config;
 import io.github.jiajunbernoulli.arthasclaw.controller.providers.CompletionProvider;
 import io.github.jiajunbernoulli.arthasclaw.mcp.McpClient;
 
@@ -34,25 +35,52 @@ public class LoopAgent {
     private ArrayNode toolsConfig;
     private String skillsPrompt;
 
+    // Configuration values
+    private final int maxIterations;
+    private final int maxMessages;
+    private final int maxRetries;
+    private final int maxToolResultLength;
+    private final long listToolsTimeoutSeconds;
+    private final long toolCallTimeoutSeconds;
+    private final long retryDelayMs;
+
     private static final String BASE_SYSTEM_PROMPT = "You are an expert Java diagnostic assistant. You have access to Arthas tools via MCP. Use the provided tools to inspect and diagnose the Java application.\n\nLanguage Rule: Always reply in the same language that the user used to ask the question. - If the input is Chinese, output Chinese. - If the input is English, output English. - Do not output translations unless explicitly asked.";
 
-    // Limits to prevent infinite loops and unbounded message growth
-    // Configurable via JVM system properties with sensible defaults
-    private static final int MAX_ITERATIONS = Integer.getInteger("ARTHASCLAW_MAX_ITERATIONS", 20);
-    private static final int MAX_MESSAGES = Integer.getInteger("ARTHASCLAW_MAX_MESSAGES", 50);
-    private static final int MAX_RETRIES = Integer.getInteger("ARTHASCLAW_MAX_RETRIES", 3);
-    private static final long LIST_TOOLS_TIMEOUT_SECONDS = Long.getLong("ARTHASCLAW_LIST_TOOLS_TIMEOUT", 5);
-    private static final long TOOL_CALL_TIMEOUT_SECONDS = Long.getLong("ARTHASCLAW_TOOL_CALL_TIMEOUT", 30);
-    private static final long RETRY_DELAY_MS = Long.getLong("ARTHASCLAW_RETRY_DELAY_MS", 1000);
-
-    public LoopAgent(CompletionProvider provider, McpClient mcpClient) {
+    /**
+     * Create LoopAgent with configuration.
+     *
+     * @param provider  completion provider
+     * @param mcpClient MCP client
+     * @param config    configuration
+     */
+    public LoopAgent(CompletionProvider provider, McpClient mcpClient, Config config) {
         this.provider = provider;
         this.mcpClient = mcpClient;
         this.messages = mapper.createArrayNode();
         this.skillsPrompt = "";
 
+        // Load configuration
+        Config.AgentConfig agentConfig = config.getAgent();
+        this.maxIterations = agentConfig.getMaxIterations();
+        this.maxMessages = agentConfig.getMaxMessages();
+        this.maxRetries = agentConfig.getMaxRetries();
+        this.maxToolResultLength = agentConfig.getMaxToolResultLength();
+        this.listToolsTimeoutSeconds = agentConfig.getListToolsTimeoutSeconds();
+        this.toolCallTimeoutSeconds = agentConfig.getToolCallTimeoutSeconds();
+        this.retryDelayMs = agentConfig.getRetryDelayMs();
+
         // System prompt
         updateSystemMessage();
+    }
+
+    /**
+     * Legacy constructor for backward compatibility with default configuration.
+     *
+     * @param provider  completion provider
+     * @param mcpClient MCP client
+     */
+    public LoopAgent(CompletionProvider provider, McpClient mcpClient) {
+        this(provider, mcpClient, new Config());
     }
 
     /**
@@ -148,9 +176,9 @@ public class LoopAgent {
         System.out.println("[*] Fetching tools from Arthas MCP Server...");
         
         Exception lastException = null;
-        for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
             try {
-                JsonNode result = mcpClient.listTools().get(LIST_TOOLS_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                JsonNode result = mcpClient.listTools().get(listToolsTimeoutSeconds, TimeUnit.SECONDS);
                 JsonNode toolsList = result.get("tools");
 
                 ArrayNode openAiTools = mapper.createArrayNode();
@@ -180,16 +208,16 @@ public class LoopAgent {
                 return openAiTools;
             } catch (java.util.concurrent.TimeoutException e) {
                 lastException = e;
-                System.err.println("[-] Attempt " + attempt + "/" + MAX_RETRIES + ": Timeout fetching tools");
+                System.err.println("[-] Attempt " + attempt + "/" + maxRetries + ": Timeout fetching tools");
             } catch (Exception e) {
                 lastException = e;
-                System.err.println("[-] Attempt " + attempt + "/" + MAX_RETRIES + ": " + e.getMessage());
+                System.err.println("[-] Attempt " + attempt + "/" + maxRetries + ": " + e.getMessage());
             }
             
             // Wait before retry (except last attempt)
-            if (attempt < MAX_RETRIES) {
+            if (attempt < maxRetries) {
                 try {
-                    Thread.sleep(RETRY_DELAY_MS);
+                    Thread.sleep(retryDelayMs);
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
                     break;
@@ -197,14 +225,14 @@ public class LoopAgent {
             }
         }
         
-        System.err.println("[-] Failed to fetch tools after " + MAX_RETRIES + " attempts: " + 
+        System.err.println("[-] Failed to fetch tools after " + maxRetries + " attempts: " + 
             (lastException != null ? lastException.getMessage() : "unknown error"));
         return mapper.createArrayNode();
     }
 
     private void processAiResponse() {
         int iteration = 0;
-        while (iteration++ < MAX_ITERATIONS) {
+        while (iteration++ < maxIterations) {
             try {
                 // Trim message history to prevent unbounded growth
                 trimMessages();
@@ -234,7 +262,7 @@ public class LoopAgent {
                         // Execute via MCP
                         String toolResultStr;
                         try {
-                            JsonNode mcpResult = mcpClient.callTool(functionName, arguments).get(TOOL_CALL_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                            JsonNode mcpResult = mcpClient.callTool(functionName, arguments).get(toolCallTimeoutSeconds, TimeUnit.SECONDS);
 
                             // Extract text content from MCP result
                             StringBuilder sb = new StringBuilder();
@@ -254,6 +282,13 @@ public class LoopAgent {
                         }
 
                         System.out.println("[*] Tool result length: " + toolResultStr.length() + " chars");
+
+                        // Truncate tool result if too long to save tokens
+                        if (toolResultStr.length() > maxToolResultLength) {
+                            String truncated = toolResultStr.substring(0, maxToolResultLength);
+                            toolResultStr = truncated + "\n... [TRUNCATED: result too long, showing first " + maxToolResultLength + " chars of " + toolResultStr.length() + "]";
+                            System.out.println("[!] Tool result truncated to " + maxToolResultLength + " chars");
+                        }
 
                         // Add tool result to messages
                         ObjectNode toolMsg = mapper.createObjectNode();
@@ -290,17 +325,17 @@ public class LoopAgent {
             }
         }
 
-        if (iteration > MAX_ITERATIONS) {
-            System.err.println("[-] Reached max iterations (" + MAX_ITERATIONS + "), stopping to prevent infinite loop.");
+        if (iteration > maxIterations) {
+            System.err.println("[-] Reached max iterations (" + maxIterations + "), stopping to prevent infinite loop.");
         }
     }
 
     /**
      * Trim message history to prevent unbounded growth.
-     * Keeps system prompt (first message) and recent messages up to MAX_MESSAGES.
+     * Keeps system prompt (first message) and recent messages up to maxMessages.
      */
     private void trimMessages() {
-        while (messages.size() > MAX_MESSAGES && messages.size() > 1) {
+        while (messages.size() > maxMessages && messages.size() > 1) {
             // Remove oldest non-system message (index 1, since index 0 is system)
             messages.remove(1);
         }

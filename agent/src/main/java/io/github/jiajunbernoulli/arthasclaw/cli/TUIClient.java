@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.github.jiajunbernoulli.arthasclaw.config.Config;
 import io.github.jiajunbernoulli.arthasclaw.controller.LoopAgent;
 import io.github.jiajunbernoulli.arthasclaw.controller.providers.CompletionProvider;
 import io.github.jiajunbernoulli.arthasclaw.controller.providers.OpenAICompletionProvider;
@@ -55,6 +56,7 @@ public class TUIClient {
     private final McpClient mcpClient;
     private final LoopAgent loopAgent;
     private final SkillManager skillManager;
+    private final Config config;
     private final ObjectMapper mapper = new ObjectMapper();
     private ArrayNode toolsConfig;
     private boolean running = true;
@@ -77,45 +79,6 @@ public class TUIClient {
     private static final String MEMORY_DIR = ARTHASCLAW_DIR + "/memory";
     private static final String WORKSPACE_DIR = ARTHASCLAW_DIR + "/workspace";
     private static final String LOGS_DIR = ARTHASCLAW_DIR + "/logs";
-
-    /**
-     * Get environment variable or prompt user for input if not set.
-     *
-     * @param envName    Name of the environment variable
-     * @param prompt     Prompt message to display
-     * @param isSecret   If true, input will be hidden (for passwords/API keys)
-     * @return The value from environment or user input
-     */
-    private static String getEnvOrPrompt(String envName, String prompt, boolean isSecret) {
-        String value = System.getenv(envName);
-        if (value != null && !value.trim().isEmpty()) {
-            System.out.println("[+] " + envName + " loaded from environment");
-            return value;
-        }
-
-        // Prompt user for input
-        System.out.print(prompt);
-        java.io.Console console = System.console();
-
-        if (console != null) {
-            // Standard console available
-            if (isSecret) {
-                char[] chars = console.readPassword();
-                value = chars != null ? new String(chars) : null;
-            } else {
-                value = console.readLine();
-            }
-            return value;
-        }
-
-        // No console available - require environment variable
-        System.err.println();
-        System.err.println("[-] Cannot read from terminal. Please set environment variable: " + envName);
-        System.err.println("    Example: export " + envName + "=your_value");
-        System.err.println("    Or run via: curl -sL https://raw.githubusercontent.com/JiajunBernoulli/ArthasClaw/main/start.sh | bash");
-        System.exit(1);
-        return null;
-    }
 
     /**
      * Initialize ArthasClaw directories in ~/.arthasclaw
@@ -143,6 +106,36 @@ public class TUIClient {
     }
 
     /**
+     * Get API key from config or prompt user.
+     *
+     * @param config the configuration
+     * @return API key string
+     */
+    private static String getApiKey(Config config) {
+        // First try environment variable
+        String apiKey = config.getEffectiveApiKey();
+        if (apiKey != null && !apiKey.trim().isEmpty()) {
+            return apiKey;
+        }
+
+        // Prompt user for input
+        System.out.print("Enter OPENAI_API_KEY: ");
+        java.io.Console console = System.console();
+
+        if (console != null) {
+            char[] chars = console.readPassword();
+            return chars != null ? new String(chars) : null;
+        }
+
+        // No console available
+        System.err.println();
+        System.err.println("[-] Cannot read from terminal. Please set OPENAI_API_KEY environment variable");
+        System.err.println("    Or add 'api_key' to ~/.arthasclaw/config.yaml");
+        System.exit(1);
+        return null;
+    }
+
+    /**
      * Main entry point for TUI client.
      * Attaches Arthas to target JVM and starts interactive session.
      */
@@ -158,31 +151,35 @@ public class TUIClient {
             // 1. Initialize directories
             initDirectories();
 
-            // 2. Attach Arthas via BotArthas bootstrap
-            BotArthas arthas = new BotArthas(pid);
+            // 2. Load configuration
+            Config config = Config.load();
+
+            // 3. Attach Arthas via BotArthas bootstrap
+            BotArthas arthas = new BotArthas(pid, config);
             McpClient mcpClient = arthas.attach();
 
-            // 3. Print ready message
+            // 4. Print ready message
             System.out.println("\n=================================================");
             System.out.println("🚀 Agent is ready!");
             System.out.println("=================================================\n");
 
-            // 4. Setup AI provider from environment (with interactive input fallback)
-            String apiKey = getEnvOrPrompt("OPENAI_API_KEY", "Enter OPENAI_API_KEY: ", true);
-            String baseUrl = getEnvOrPrompt("OPENAI_BASE_URL", "Enter OPENAI_BASE_URL (default: https://api.openai.com/v1): ", false);
-            String model = getEnvOrPrompt("OPENAI_MODEL", "Enter OPENAI_MODEL (default: gpt-4o-mini): ", false);
+            // 5. Get API key and update config
+            String apiKey = getApiKey(config);
+            config.getLlm().setApiKey(apiKey);
 
-            // Apply defaults if empty
-            if (baseUrl == null || baseUrl.trim().isEmpty()) {
-                baseUrl = "https://api.openai.com/v1/chat/completions";
+            // Override with environment variables if set
+            String envBaseUrl = System.getenv("OPENAI_BASE_URL");
+            if (envBaseUrl != null && !envBaseUrl.trim().isEmpty()) {
+                config.getLlm().setBaseUrl(envBaseUrl);
             }
-            if (model == null || model.trim().isEmpty()) {
-                model = "gpt-4o-mini";
+            String envModel = System.getenv("OPENAI_MODEL");
+            if (envModel != null && !envModel.trim().isEmpty()) {
+                config.getLlm().setModel(envModel);
             }
 
-            // 5. Create provider and start TUI
-            CompletionProvider provider = new OpenAICompletionProvider(apiKey, model, baseUrl);
-            TUIClient tui = new TUIClient(provider, mcpClient);
+            // 6. Create provider and start TUI
+            CompletionProvider provider = new OpenAICompletionProvider(config.getLlm());
+            TUIClient tui = new TUIClient(provider, mcpClient, config);
             tui.start();
 
         } catch (Exception e) {
@@ -192,10 +189,11 @@ public class TUIClient {
         }
     }
 
-    public TUIClient(CompletionProvider provider, McpClient mcpClient) {
+    public TUIClient(CompletionProvider provider, McpClient mcpClient, Config config) {
         this.provider = provider;
         this.mcpClient = mcpClient;
-        this.loopAgent = new LoopAgent(provider, mcpClient);
+        this.config = config;
+        this.loopAgent = new LoopAgent(provider, mcpClient, config);
         this.skillManager = new SkillManager();
         this.reader = new BufferedReader(new InputStreamReader(System.in));
 
@@ -213,6 +211,13 @@ public class TUIClient {
             this.terminal = null;
             this.lineReader = null;
         }
+    }
+
+    /**
+     * Legacy constructor for backward compatibility.
+     */
+    public TUIClient(CompletionProvider provider, McpClient mcpClient) {
+        this(provider, mcpClient, new Config());
     }
 
     public void start() {
@@ -270,6 +275,8 @@ public class TUIClient {
         System.out.println("  " + YELLOW + "$<command>" + RESET + "     - Execute Arthas command (e.g., $thread)");
         System.out.println("  " + YELLOW + "/<command>" + RESET + "     - System commands (e.g., /help, /quit, /skill)");
         System.out.println();
+        System.out.println("Config: ~/.arthasclaw/config.yaml");
+        System.out.println();
     }
 
     void processCommand(String input) {
@@ -319,6 +326,10 @@ public class TUIClient {
                 showHistory();
                 break;
 
+            case "config":
+                showConfig();
+                break;
+
             case "version":
                 System.out.println("ArthasClaw TUI v1.0.0");
                 break;
@@ -345,6 +356,7 @@ public class TUIClient {
         System.out.println("  /clear            Clear conversation history");
         System.out.println("  /tools            List available tools");
         System.out.println("  /history          Show conversation history");
+        System.out.println("  /config           Show current configuration");
         System.out.println("  /version          Show version info");
         System.out.println();
         System.out.println("[Skill Commands] /skill <subcommand>");
@@ -370,6 +382,46 @@ public class TUIClient {
         System.out.println("  What methods does MathGame have?");
         System.out.println("  Check for thread deadlock");
         System.out.println("  Analyze memory usage");
+        System.out.println();
+        System.out.println("[Configuration] Edit ~/.arthasclaw/config.yaml");
+        System.out.println("  agent.max_iterations     - Max agent loop iterations");
+        System.out.println("  agent.max_messages       - Max messages in history");
+        System.out.println("  agent.max_tool_result_length - Truncate tool results");
+        System.out.println("  llm.temperature          - LLM temperature (0.0-2.0)");
+        System.out.println("  llm.max_tokens           - Max response tokens");
+        System.out.println("  llm.top_p                - Nucleus sampling (0.0-1.0)");
+        System.out.println();
+    }
+
+    private void showConfig() {
+        System.out.println();
+        System.out.println(CYAN + "Current Configuration:" + RESET);
+        System.out.println();
+        System.out.println("[Agent Settings]");
+        System.out.println("  max_iterations:         " + config.getAgent().getMaxIterations());
+        System.out.println("  max_messages:           " + config.getAgent().getMaxMessages());
+        System.out.println("  max_retries:            " + config.getAgent().getMaxRetries());
+        System.out.println("  max_tool_result_length: " + config.getAgent().getMaxToolResultLength());
+        System.out.println("  list_tools_timeout:     " + config.getAgent().getListToolsTimeoutSeconds() + "s");
+        System.out.println("  tool_call_timeout:      " + config.getAgent().getToolCallTimeoutSeconds() + "s");
+        System.out.println("  retry_delay:            " + config.getAgent().getRetryDelayMs() + "ms");
+        System.out.println();
+        System.out.println("[LLM Settings]");
+        System.out.println("  base_url:     " + config.getEffectiveBaseUrl());
+        System.out.println("  model:        " + config.getEffectiveModel());
+        System.out.println("  timeout:      " + config.getLlm().getTimeoutSeconds() + "s");
+        System.out.println("  temperature:  " + config.getLlm().getTemperature());
+        System.out.println("  max_tokens:   " + config.getLlm().getMaxTokens());
+        System.out.println("  top_p:        " + config.getLlm().getTopP());
+        System.out.println();
+        System.out.println("[MCP Settings]");
+        System.out.println("  port:                  " + config.getMcp().getPort());
+        System.out.println("  endpoint:              " + config.getMcp().getEndpoint());
+        System.out.println("  arthas_version:        " + config.getMcp().getArthasVersion());
+        System.out.println("  connect_timeout:       " + config.getMcp().getConnectTimeoutSeconds() + "s");
+        System.out.println("  initialize_timeout:    " + config.getMcp().getInitializeTimeoutSeconds() + "s");
+        System.out.println();
+        System.out.println("Config file: " + ARTHASCLAW_DIR + "/config.yaml");
         System.out.println();
     }
 
@@ -644,7 +696,8 @@ public class TUIClient {
             }
 
             // Try to call via MCP - use the command as tool name
-            JsonNode mcpResult = mcpClient.callTool(command, arguments).get(30, TimeUnit.SECONDS);
+            JsonNode mcpResult = mcpClient.callTool(command, arguments).get(
+                    config.getAgent().getToolCallTimeoutSeconds(), TimeUnit.SECONDS);
 
             // Extract and print result
             String resultStr = extractMcpResult(mcpResult);
@@ -688,7 +741,8 @@ public class TUIClient {
     private void fetchToolsList() {
         System.out.println("[*] Loading Arthas tools...");
         try {
-            JsonNode result = mcpClient.listTools().get(5, TimeUnit.SECONDS);
+            JsonNode result = mcpClient.listTools().get(
+                    config.getAgent().getListToolsTimeoutSeconds(), TimeUnit.SECONDS);
             JsonNode toolsList = result.get("tools");
 
             toolsConfig = mapper.createArrayNode();

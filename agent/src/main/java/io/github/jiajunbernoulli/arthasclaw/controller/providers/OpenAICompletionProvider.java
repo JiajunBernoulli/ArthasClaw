@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.github.jiajunbernoulli.arthasclaw.config.Config;
 import okhttp3.*;
 
 import java.io.IOException;
@@ -32,12 +33,56 @@ public class OpenAICompletionProvider implements CompletionProvider {
     private final String apiKey;
     private final String model;
     private final String baseUrl;
+    private final int timeoutSeconds;
+    private final double temperature;
+    private final int maxTokens;
+    private final double topP;
     private final OkHttpClient httpClient;
     private final ObjectMapper mapper = new ObjectMapper();
 
+    /**
+     * Create provider from LLM config.
+     *
+     * @param llmConfig the LLM configuration
+     */
+    public OpenAICompletionProvider(Config.LlmConfig llmConfig) {
+        this.apiKey = llmConfig.getApiKey();
+        this.model = llmConfig.getModel() != null ? llmConfig.getModel() : "gpt-4o-mini";
+        this.timeoutSeconds = llmConfig.getTimeoutSeconds();
+        this.temperature = llmConfig.getTemperature();
+        this.maxTokens = llmConfig.getMaxTokens();
+        this.topP = llmConfig.getTopP();
+
+        String tempUrl = llmConfig.getBaseUrl() != null ? llmConfig.getBaseUrl() : "https://api.openai.com/v1/chat/completions";
+        if (!tempUrl.endsWith("/chat/completions")) {
+            if (tempUrl.endsWith("/")) {
+                tempUrl += "chat/completions";
+            } else {
+                tempUrl += "/chat/completions";
+            }
+            System.out.println("[DEBUG] Adjusted API URL to: " + tempUrl);
+        }
+        this.baseUrl = tempUrl;
+
+        this.httpClient = new OkHttpClient.Builder()
+                .readTimeout(timeoutSeconds, TimeUnit.SECONDS)
+                .build();
+    }
+
+    /**
+     * Legacy constructor for backward compatibility.
+     *
+     * @param apiKey  API key
+     * @param model   model name
+     * @param baseUrl base URL
+     */
     public OpenAICompletionProvider(String apiKey, String model, String baseUrl) {
         this.apiKey = apiKey;
         this.model = model != null ? model : "gpt-4o-mini";
+        this.timeoutSeconds = 60;
+        this.temperature = 0.7;
+        this.maxTokens = 4096;
+        this.topP = 1.0;
 
         String tempUrl = baseUrl != null ? baseUrl : "https://api.openai.com/v1/chat/completions";
         if (!tempUrl.endsWith("/chat/completions")) {
@@ -51,7 +96,7 @@ public class OpenAICompletionProvider implements CompletionProvider {
         this.baseUrl = tempUrl;
 
         this.httpClient = new OkHttpClient.Builder()
-                .readTimeout(60, TimeUnit.SECONDS)
+                .readTimeout(timeoutSeconds, TimeUnit.SECONDS)
                 .build();
     }
 
@@ -81,6 +126,11 @@ public class OpenAICompletionProvider implements CompletionProvider {
         ObjectNode requestBody = mapper.createObjectNode();
         requestBody.put("model", model);
         requestBody.set("messages", validMessages);
+
+        // Add LLM parameters
+        requestBody.put("temperature", temperature);
+        requestBody.put("max_tokens", maxTokens);
+        requestBody.put("top_p", topP);
 
         if (toolsConfig != null && toolsConfig.size() > 0) {
             requestBody.set("tools", toolsConfig);
@@ -116,5 +166,17 @@ public class OpenAICompletionProvider implements CompletionProvider {
 
     public String getBaseUrl() {
         return baseUrl;
+    }
+
+    public double getTemperature() {
+        return temperature;
+    }
+
+    public int getMaxTokens() {
+        return maxTokens;
+    }
+
+    public double getTopP() {
+        return topP;
     }
 }
