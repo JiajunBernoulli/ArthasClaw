@@ -19,15 +19,16 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
-import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Represents a skill that can be installed and used by the AI agent.
- * A skill contains a prompt template and optional tool configurations
- * that enhance the agent's capabilities for specific tasks.
+ * A skill contains metadata and a prompt template that enhances
+ * the agent's capabilities for specific tasks.
+ * 
+ * Uses lazy loading: prompt content is loaded on demand, not at startup.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -38,17 +39,20 @@ public class Skill {
     private String version;
     private String author;
     private List<String> tools;
+    
+    // Lazy-loaded prompt content
     private String prompt;
-    private boolean enabled;
+    private boolean promptLoaded = false;
+    
+    // File path for lazy loading
+    private String filePath;
 
     // Metadata
     private LocalDateTime installedAt;
     private String source;
-    private String filePath;
 
     public Skill() {
         this.tools = new ArrayList<>();
-        this.enabled = true;
         this.installedAt = LocalDateTime.now();
     }
 
@@ -100,14 +104,15 @@ public class Skill {
 
     public void setPrompt(String prompt) {
         this.prompt = prompt;
+        this.promptLoaded = true;
     }
 
-    public boolean isEnabled() {
-        return enabled;
+    public String getFilePath() {
+        return filePath;
     }
 
-    public void setEnabled(boolean enabled) {
-        this.enabled = enabled;
+    public void setFilePath(String filePath) {
+        this.filePath = filePath;
     }
 
     public LocalDateTime getInstalledAt() {
@@ -126,15 +131,12 @@ public class Skill {
         this.source = source;
     }
 
-    public String getFilePath() {
-        return filePath;
-    }
+    // Lazy loading support
 
-    public void setFilePath(String filePath) {
-        this.filePath = filePath;
+    @JsonIgnore
+    public boolean isPromptLoaded() {
+        return promptLoaded;
     }
-
-    // Convenience methods
 
     @JsonIgnore
     public boolean hasPrompt() {
@@ -151,13 +153,10 @@ public class Skill {
      */
     @JsonIgnore
     public String getSummary() {
-        StringBuilder sb = new StringBuilder();
-        sb.append(String.format("  %s %-20s %-8s %s",
-                enabled ? "✓" : "✗",
+        return String.format("  %-20s %-8s %s",
                 name != null ? name : "unnamed",
                 version != null ? "v" + version : "v?",
-                description != null ? description : "No description"));
-        return sb.toString();
+                description != null ? description : "No description");
     }
 
     /**
@@ -170,12 +169,12 @@ public class Skill {
         sb.append("Version: ").append(version != null ? version : "N/A").append("\n");
         sb.append("Author: ").append(author != null ? author : "N/A").append("\n");
         sb.append("Description: ").append(description != null ? description : "N/A").append("\n");
-        sb.append("Status: ").append(enabled ? "Enabled" : "Disabled").append("\n");
         sb.append("Source: ").append(source != null ? source : "N/A").append("\n");
         sb.append("Installed: ").append(installedAt != null ? installedAt.toString() : "N/A").append("\n");
         if (hasTools()) {
             sb.append("Tools: ").append(String.join(", ", tools)).append("\n");
         }
+        sb.append("Prompt loaded: ").append(promptLoaded ? "Yes" : "No").append("\n");
         if (hasPrompt()) {
             sb.append("\nPrompt:\n").append(prompt).append("\n");
         }
@@ -187,7 +186,7 @@ public class Skill {
         return "Skill{" +
                 "name='" + name + '\'' +
                 ", version='" + version + '\'' +
-                ", enabled=" + enabled +
+                ", promptLoaded=" + promptLoaded +
                 '}';
     }
 }

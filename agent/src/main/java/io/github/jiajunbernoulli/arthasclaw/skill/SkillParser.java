@@ -32,6 +32,9 @@ import java.util.regex.Pattern;
  * 1. YAML front matter with markdown body (recommended)
  * 2. Pure YAML file
  *
+ * Uses lazy loading: parseMetadata() only reads YAML header,
+ * loadPrompt() reads the full prompt content on demand.
+ *
  * Example skill file with front matter:
  * <pre>
  * ---
@@ -59,24 +62,24 @@ public class SkillParser {
     }
 
     /**
-     * Parse a skill file from the given path.
+     * Parse only metadata from a skill file (lazy loading).
+     * Does not load the prompt content.
      *
      * @param path the path to the skill file
-     * @return the parsed Skill object
+     * @return the Skill object with metadata only
      * @throws IOException if parsing fails
      */
-    public Skill parse(Path path) throws IOException {
+    public Skill parseMetadata(Path path) throws IOException {
         String content = new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
+        String filename = path.getFileName().toString().replaceAll("\\.(md|yaml|yml)$", "");
 
-        // Try front matter format first
+        // Try front matter format
         Matcher matcher = FRONT_MATTER_PATTERN.matcher(content);
         if (matcher.matches()) {
             String yamlPart = matcher.group(1);
-            String promptPart = matcher.group(2).trim();
-
-            Skill skill = parseYaml(yamlPart);
-            if (!promptPart.isEmpty()) {
-                skill.setPrompt(promptPart);
+            Skill skill = parseYamlMetadata(yamlPart);
+            if (skill.getName() == null || skill.getName().isEmpty()) {
+                skill.setName(filename);
             }
             skill.setFilePath(path.toString());
             return skill;
@@ -84,16 +87,89 @@ public class SkillParser {
 
         // Try pure YAML format
         if (content.trim().startsWith("name:") || content.trim().startsWith("-")) {
-            Skill skill = parseYaml(content);
+            Skill skill = parseYamlMetadata(content);
+            if (skill.getName() == null || skill.getName().isEmpty()) {
+                skill.setName(filename);
+            }
+            skill.setFilePath(path.toString());
+            return skill;
+        }
+
+        // Treat as pure prompt file - create minimal metadata
+        Skill skill = new Skill();
+        skill.setName(filename);
+        skill.setFilePath(path.toString());
+        return skill;
+    }
+
+    /**
+     * Load the prompt content from a skill file.
+     *
+     * @param path the path to the skill file
+     * @return the prompt content, or null if not found
+     * @throws IOException if reading fails
+     */
+    public String loadPrompt(Path path) throws IOException {
+        String content = new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
+
+        // Try front matter format
+        Matcher matcher = FRONT_MATTER_PATTERN.matcher(content);
+        if (matcher.matches()) {
+            String promptPart = matcher.group(2).trim();
+            return promptPart.isEmpty() ? null : promptPart;
+        }
+
+        // Try pure YAML format - check for prompt field
+        if (content.trim().startsWith("name:")) {
+            SkillMetadata metadata = yamlMapper.readValue(content, SkillMetadata.class);
+            return metadata.prompt;
+        }
+
+        // Treat entire content as prompt
+        return content.trim().isEmpty() ? null : content.trim();
+    }
+
+    /**
+     * Parse a skill file fully (metadata + prompt).
+     *
+     * @param path the path to the skill file
+     * @return the parsed Skill object
+     * @throws IOException if parsing fails
+     */
+    public Skill parse(Path path) throws IOException {
+        String content = new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
+        String filename = path.getFileName().toString().replaceAll("\\.(md|yaml|yml)$", "");
+
+        // Try front matter format first
+        Matcher matcher = FRONT_MATTER_PATTERN.matcher(content);
+        if (matcher.matches()) {
+            String yamlPart = matcher.group(1);
+            String promptPart = matcher.group(2).trim();
+
+            Skill skill = parseYamlMetadata(yamlPart);
+            if (!promptPart.isEmpty()) {
+                skill.setPrompt(promptPart);
+            }
+            if (skill.getName() == null || skill.getName().isEmpty()) {
+                skill.setName(filename);
+            }
+            skill.setFilePath(path.toString());
+            return skill;
+        }
+
+        // Try pure YAML format
+        if (content.trim().startsWith("name:") || content.trim().startsWith("-")) {
+            Skill skill = parseYamlMetadata(content);
+            if (skill.getName() == null || skill.getName().isEmpty()) {
+                skill.setName(filename);
+            }
             skill.setFilePath(path.toString());
             return skill;
         }
 
         // Treat as pure prompt (no metadata)
         Skill skill = new Skill();
-        // Derive name from filename
-        String filename = path.getFileName().toString();
-        skill.setName(filename.replaceAll("\\.(md|yaml|yml)$", ""));
+        skill.setName(filename);
         skill.setPrompt(content.trim());
         skill.setFilePath(path.toString());
         return skill;
@@ -113,7 +189,7 @@ public class SkillParser {
             String yamlPart = matcher.group(1);
             String promptPart = matcher.group(2).trim();
 
-            Skill skill = parseYaml(yamlPart);
+            Skill skill = parseYamlMetadata(yamlPart);
             if (!promptPart.isEmpty()) {
                 skill.setPrompt(promptPart);
             }
@@ -125,7 +201,7 @@ public class SkillParser {
 
         // Try pure YAML
         if (content.trim().startsWith("name:")) {
-            Skill skill = parseYaml(content);
+            Skill skill = parseYamlMetadata(content);
             if (skill.getName() == null || skill.getName().isEmpty()) {
                 skill.setName(defaultName);
             }
@@ -139,7 +215,7 @@ public class SkillParser {
         return skill;
     }
 
-    private Skill parseYaml(String yaml) throws IOException {
+    private Skill parseYamlMetadata(String yaml) throws IOException {
         SkillMetadata metadata = yamlMapper.readValue(yaml, SkillMetadata.class);
         Skill skill = new Skill();
         skill.setName(metadata.name);

@@ -225,7 +225,7 @@ public class TUIClient {
         loopAgent.init();
         fetchToolsList();
 
-        // Load enabled skills into LoopAgent
+        // Load skills into LoopAgent
         updateLoopAgentSkills();
 
         while (running) {
@@ -363,8 +363,6 @@ public class TUIClient {
         System.out.println("  /skill install <url|path>  Install a skill from URL or local file");
         System.out.println("  /skill list               List installed skills");
         System.out.println("  /skill show <name>        Show skill details");
-        System.out.println("  /skill enable <name>      Enable a skill");
-        System.out.println("  /skill disable <name>     Disable a skill");
         System.out.println("  /skill remove <name>      Remove a skill");
         System.out.println();
         System.out.println("[Shell Commands] !<command>");
@@ -426,11 +424,11 @@ public class TUIClient {
     }
 
     /**
-     * Handle skill commands (/skill install|list|show|enable|disable|remove)
+     * Handle skill commands (/skill install|list|show|remove)
      */
     private void handleSkillCommand(String args) {
         if (args.isEmpty()) {
-            System.out.println(RED + "[-] Usage: /skill <install|list|show|enable|disable|remove> [args]" + RESET);
+            System.out.println(RED + "[-] Usage: /skill <install|list|show|remove> [args]" + RESET);
             return;
         }
 
@@ -452,14 +450,6 @@ public class TUIClient {
                 showSkill(subArgs);
                 break;
 
-            case "enable":
-                enableSkill(subArgs);
-                break;
-
-            case "disable":
-                disableSkill(subArgs);
-                break;
-
             case "remove":
             case "rm":
                 removeSkill(subArgs);
@@ -467,7 +457,7 @@ public class TUIClient {
 
             default:
                 System.out.println(RED + "[-] Unknown skill command: " + subCommand + RESET);
-                System.out.println(YELLOW + "    Available: install, list, show, enable, disable, remove" + RESET);
+                System.out.println(YELLOW + "    Available: install, list, show, remove" + RESET);
         }
     }
 
@@ -525,34 +515,6 @@ public class TUIClient {
         );
     }
 
-    private void enableSkill(String name) {
-        if (name.isEmpty()) {
-            System.out.println(RED + "[-] Usage: /skill enable <name>" + RESET);
-            return;
-        }
-
-        if (skillManager.enable(name)) {
-            System.out.println(GREEN + "[+] Skill enabled: " + name + RESET);
-            updateLoopAgentSkills();
-        } else {
-            System.out.println(RED + "[-] Skill not found: " + name + RESET);
-        }
-    }
-
-    private void disableSkill(String name) {
-        if (name.isEmpty()) {
-            System.out.println(RED + "[-] Usage: /skill disable <name>" + RESET);
-            return;
-        }
-
-        if (skillManager.disable(name)) {
-            System.out.println(GREEN + "[+] Skill disabled: " + name + RESET);
-            updateLoopAgentSkills();
-        } else {
-            System.out.println(RED + "[-] Skill not found: " + name + RESET);
-        }
-    }
-
     private void removeSkill(String name) {
         if (name.isEmpty()) {
             System.out.println(RED + "[-] Usage: /skill remove <name>" + RESET);
@@ -572,7 +534,7 @@ public class TUIClient {
     }
 
     /**
-     * Update LoopAgent with current enabled skills.
+     * Update LoopAgent with current skills.
      */
     private void updateLoopAgentSkills() {
         String combinedPrompt = skillManager.getCombinedPrompt();

@@ -15,9 +15,6 @@
  */
 package io.github.jiajunbernoulli.arthasclaw.skill;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -36,8 +33,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Manages skill lifecycle operations including installation, listing,
- * enabling/disabling, and removal. Skills are stored in ~/.arthasclaw/skills/
+ * Manages skill lifecycle operations including installation, listing, and removal.
+ * Skills are stored in ~/.arthasclaw/skills/
+ * 
+ * Uses lazy loading: metadata is loaded at startup, prompt content is loaded on demand.
  */
 public class SkillManager {
 
@@ -47,7 +46,6 @@ public class SkillManager {
 
     private final Path skillsPath;
     private final SkillParser parser;
-    private final ObjectMapper jsonMapper;
     private final Map<String, Skill> skillCache;
 
     /**
@@ -65,12 +63,10 @@ public class SkillManager {
     public SkillManager(String skillsDirPath) {
         this.skillsPath = Paths.get(skillsDirPath);
         this.parser = new SkillParser();
-        this.jsonMapper = new ObjectMapper();
-        this.jsonMapper.enable(SerializationFeature.INDENT_OUTPUT);
         this.skillCache = new ConcurrentHashMap<>();
 
         ensureSkillsDirectory();
-        loadAllSkills();
+        loadAllSkillMetadata();
     }
 
     /**
@@ -85,12 +81,13 @@ public class SkillManager {
     }
 
     /**
-     * Load all skills from the skills directory into cache.
+     * Load metadata from all skill files into cache (lazy loading).
+     * Does not load prompt content.
      */
-    private void loadAllSkills() {
+    private void loadAllSkillMetadata() {
         try (Stream<Path> files = Files.list(skillsPath)) {
             files.filter(this::isSkillFile)
-                    .forEach(this::loadSkillFromFile);
+                    .forEach(this::loadSkillMetadata);
         } catch (IOException e) {
             System.err.println("[-] Failed to load skills: " + e.getMessage());
         }
@@ -101,14 +98,14 @@ public class SkillManager {
         return name.endsWith(".md") || name.endsWith(".yaml") || name.endsWith(".yml");
     }
 
-    private void loadSkillFromFile(Path path) {
+    private void loadSkillMetadata(Path path) {
         try {
-            Skill skill = parser.parse(path);
+            Skill skill = parser.parseMetadata(path);
             if (skill.getName() != null && !skill.getName().isEmpty()) {
                 skillCache.put(skill.getName(), skill);
             }
         } catch (IOException e) {
-            System.err.println("[-] Failed to parse skill: " + path + " - " + e.getMessage());
+            System.err.println("[-] Failed to parse skill metadata: " + path + " - " + e.getMessage());
         }
     }
 
@@ -146,7 +143,7 @@ public class SkillManager {
         Files.write(targetPath, content.getBytes("UTF-8"));
         skill.setFilePath(targetPath.toString());
 
-        // Update cache
+        // Update cache (metadata only, prompt already loaded by parseFromString)
         skillCache.put(skill.getName(), skill);
 
         return skill;
@@ -178,37 +175,7 @@ public class SkillManager {
     }
 
     /**
-     * Enable a disabled skill.
-     *
-     * @param name the skill name
-     * @return true if enabled, false if not found
-     */
-    public boolean enable(String name) {
-        Skill skill = skillCache.get(name);
-        if (skill == null) {
-            return false;
-        }
-        skill.setEnabled(true);
-        return true;
-    }
-
-    /**
-     * Disable an enabled skill.
-     *
-     * @param name the skill name
-     * @return true if disabled, false if not found
-     */
-    public boolean disable(String name) {
-        Skill skill = skillCache.get(name);
-        if (skill == null) {
-            return false;
-        }
-        skill.setEnabled(false);
-        return true;
-    }
-
-    /**
-     * Get a skill by name.
+     * Get a skill by name. Loads prompt on demand if not already loaded.
      *
      * @param name the skill name
      * @return Optional containing the skill if found
@@ -227,37 +194,49 @@ public class SkillManager {
     }
 
     /**
-     * List only enabled skills.
-     *
-     * @return list of enabled skills
-     */
-    public List<Skill> listEnabled() {
-        return skillCache.values().stream()
-                .filter(Skill::isEnabled)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Get combined prompt from all enabled skills.
+     * Get combined prompt from all skills with prompts.
+     * Lazy loads prompt content on demand.
      *
      * @return combined prompt string
      */
     public String getCombinedPrompt() {
-        return skillCache.values().stream()
-                .filter(Skill::isEnabled)
-                .filter(Skill::hasPrompt)
-                .map(skill -> "## Skill: " + skill.getName() + "\n\n" + skill.getPrompt())
-                .collect(Collectors.joining("\n\n---\n\n"));
+        StringBuilder combined = new StringBuilder();
+        boolean first = true;
+
+        for (Skill skill : skillCache.values()) {
+            // Lazy load prompt if not already loaded
+            if (!skill.isPromptLoaded() && skill.getFilePath() != null) {
+                try {
+                    String prompt = parser.loadPrompt(Paths.get(skill.getFilePath()));
+                    if (prompt != null && !prompt.isEmpty()) {
+                        skill.setPrompt(prompt);
+                    }
+                } catch (IOException e) {
+                    System.err.println("[-] Failed to load prompt for skill: " + skill.getName() + " - " + e.getMessage());
+                    continue;
+                }
+            }
+
+            if (skill.hasPrompt()) {
+                if (!first) {
+                    combined.append("\n\n---\n\n");
+                }
+                combined.append("## Skill: ").append(skill.getName()).append("\n\n");
+                combined.append(skill.getPrompt());
+                first = false;
+            }
+        }
+
+        return combined.toString();
     }
 
     /**
-     * Get all unique tools from enabled skills.
+     * Get all unique tools from all skills.
      *
      * @return list of tool names
      */
-    public List<String> getEnabledTools() {
+    public List<String> getAllTools() {
         return skillCache.values().stream()
-                .filter(Skill::isEnabled)
                 .filter(Skill::hasTools)
                 .flatMap(skill -> skill.getTools().stream())
                 .distinct()

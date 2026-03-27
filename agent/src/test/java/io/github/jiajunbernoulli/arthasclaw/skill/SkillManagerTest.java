@@ -70,7 +70,6 @@ class SkillManagerTest {
         assertTrue(skill.hasTools());
         assertEquals(2, skill.getTools().size());
         assertTrue(skill.hasPrompt());
-        assertTrue(skill.isEnabled());
     }
 
     @Test
@@ -106,27 +105,6 @@ class SkillManagerTest {
     }
 
     @Test
-    void testEnableDisableSkill() throws IOException {
-        String skillContent = "---\nname: toggle-skill\ndescription: Toggle test\n---\nPrompt";
-        Path skillFile = tempDir.resolve("toggle.md");
-        Files.writeString(skillFile, skillContent);
-
-        skillManager.install(skillFile.toString());
-
-        // Disable
-        assertTrue(skillManager.disable("toggle-skill"));
-        Optional<Skill> disabled = skillManager.get("toggle-skill");
-        assertTrue(disabled.isPresent());
-        assertFalse(disabled.get().isEnabled());
-
-        // Enable
-        assertTrue(skillManager.enable("toggle-skill"));
-        Optional<Skill> enabled = skillManager.get("toggle-skill");
-        assertTrue(enabled.isPresent());
-        assertTrue(enabled.get().isEnabled());
-    }
-
-    @Test
     void testRemoveSkill() throws IOException {
         String skillContent = "---\nname: removable-skill\ndescription: To be removed\n---\nPrompt";
         Path skillFile = tempDir.resolve("removable.md");
@@ -158,33 +136,12 @@ class SkillManagerTest {
     }
 
     @Test
-    void testGetCombinedPromptOnlyEnabled() throws IOException {
-        String skill1 = "---\nname: enabled-skill\n---\nEnabled prompt.";
-        String skill2 = "---\nname: disabled-skill\n---\nDisabled prompt.";
-
-        Files.writeString(tempDir.resolve("e1.md"), skill1);
-        Files.writeString(tempDir.resolve("e2.md"), skill2);
-
-        skillManager.install(tempDir.resolve("e1.md").toString());
-        skillManager.install(tempDir.resolve("e2.md").toString());
-
-        // Disable one skill
-        skillManager.disable("disabled-skill");
-
-        String combined = skillManager.getCombinedPrompt();
-        assertTrue(combined.contains("enabled-skill"));
-        assertTrue(combined.contains("Enabled prompt."));
-        assertFalse(combined.contains("disabled-skill"));
-        assertFalse(combined.contains("Disabled prompt."));
-    }
-
-    @Test
-    void testGetEnabledTools() throws IOException {
+    void testGetAllTools() throws IOException {
         String skill1 = "---\nname: tool-skill\ntools:\n  - thread\n  - dashboard\n---\nPrompt";
         Files.writeString(tempDir.resolve("tool.md"), skill1);
         skillManager.install(tempDir.resolve("tool.md").toString());
 
-        List<String> tools = skillManager.getEnabledTools();
+        List<String> tools = skillManager.getAllTools();
         assertEquals(2, tools.size());
         assertTrue(tools.contains("thread"));
         assertTrue(tools.contains("dashboard"));
@@ -220,5 +177,38 @@ class SkillManagerTest {
         assertEquals("1.0.0", skill.getVersion());
         assertEquals(4, skill.getTools().size());
         assertTrue(skill.getPrompt().contains("deadlock analysis expert"));
+    }
+
+    @Test
+    void testLazyLoading() throws IOException {
+        // Create a skill file
+        String skillContent = "---\n" +
+                "name: lazy-skill\n" +
+                "description: Test lazy loading\n" +
+                "---\n" +
+                "This prompt should be loaded lazily.";
+        
+        Path skillFile = skillsDir.resolve("lazy-skill.md");
+        Files.writeString(skillFile, skillContent);
+
+        // Create new SkillManager to trigger lazy loading
+        SkillManager lazyManager = new SkillManager(skillsDir.toString());
+        
+        // Get skill - metadata should be loaded
+        Optional<Skill> skillOpt = lazyManager.get("lazy-skill");
+        assertTrue(skillOpt.isPresent());
+        Skill skill = skillOpt.get();
+        
+        assertEquals("lazy-skill", skill.getName());
+        assertEquals("Test lazy loading", skill.getDescription());
+        
+        // Prompt should not be loaded yet
+        assertFalse(skill.isPromptLoaded());
+        
+        // Get combined prompt - this triggers lazy loading
+        String combined = lazyManager.getCombinedPrompt();
+        assertTrue(skill.isPromptLoaded());
+        assertTrue(combined.contains("lazy-skill"));
+        assertTrue(combined.contains("This prompt should be loaded lazily."));
     }
 }
