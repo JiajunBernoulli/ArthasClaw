@@ -23,6 +23,7 @@ import io.github.jiajunbernoulli.arthasclaw.config.Config;
 import io.github.jiajunbernoulli.arthasclaw.context.SessionContext;
 import io.github.jiajunbernoulli.arthasclaw.controller.providers.CompletionProvider;
 import io.github.jiajunbernoulli.arthasclaw.mcp.McpClient;
+import io.github.jiajunbernoulli.arthasclaw.memory.MemoryManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,6 +41,7 @@ public class LoopAgent {
     private ArrayNode toolsConfig;
     private String skillsPrompt;
     private SessionContext sessionContext;
+    private MemoryManager memoryManager;
 
     // Configuration values
     private final int maxIterations;
@@ -140,6 +142,15 @@ public class LoopAgent {
     }
 
     /**
+     * Set the memory manager for this agent.
+     * 
+     * @param memoryManager the memory manager
+     */
+    public void setMemoryManager(MemoryManager memoryManager) {
+        this.memoryManager = memoryManager;
+    }
+
+    /**
      * Process a single query and return the response.
      * @param input the user query
      */
@@ -158,19 +169,85 @@ public class LoopAgent {
         String truncatedInput = input.length() > 200 ? input.substring(0, 200) + "..." : input;
         log.info("[{}] User query: {}", requestId, truncatedInput);
 
+        // Check if user wants to save something to memory
+        boolean shouldExtractMemory = memoryManager != null && memoryManager.shouldExtractMemory(input);
+        String userMessageForMemory = input;
+
         ObjectNode userMsg = mapper.createObjectNode();
         userMsg.put("role", "user");
         userMsg.put("content", input);
         messages.add(userMsg);
 
+        // Save user message to session
+        if (memoryManager != null) {
+            memoryManager.addMessage("user", input);
+        }
+
         try {
             processAiResponse();
+
+            // Extract memory if needed (after AI response)
+            if (shouldExtractMemory) {
+                extractAndSaveMemory(userMessageForMemory);
+            }
         } finally {
             // End request context
             if (sessionContext != null) {
                 sessionContext.endRequest();
             }
             log.debug("[{}] Request completed", requestId);
+        }
+    }
+
+    /**
+     * Extract and save memory from user message using LLM.
+     * 
+     * @param userMessage the user message containing memory request
+     */
+    private void extractAndSaveMemory(String userMessage) {
+        log.info("Extracting memory from user message");
+
+        // Create a simple prompt to extract the fact
+        String extractPrompt = String.format(
+            "Extract the key information the user wants to remember from this message. " +
+            "Return only a JSON object with 'key' and 'value' fields, nothing else.\n\n" +
+            "Example:\n" +
+            "Input: \"记住，这个问题的根因是连接池配置错误\"\n" +
+            "Output: {\"key\": \"rootCause:connection-pool\", \"value\": \"连接池配置错误\"}\n\n" +
+            "Input: \"%s\"\n" +
+            "Output:",
+            userMessage.replace("\"", "\\\"")
+        );
+
+        try {
+            // Create temporary message for extraction
+            ArrayNode extractMessages = mapper.createArrayNode();
+            ObjectNode extractMsg = mapper.createObjectNode();
+            extractMsg.put("role", "user");
+            extractMsg.put("content", extractPrompt);
+            extractMessages.add(extractMsg);
+
+            ObjectNode response = provider.chatCompletion(extractMessages, null);
+            if (response.hasNonNull("content")) {
+                String content = response.get("content").asText().trim();
+                
+                // Try to parse as JSON
+                if (content.startsWith("{")) {
+                    JsonNode factJson = mapper.readTree(content);
+                    String key = factJson.has("key") ? factJson.get("key").asText() : "user-note";
+                    String value = factJson.has("value") ? factJson.get("value").asText() : userMessage;
+                    
+                    memoryManager.addFact(key, value);
+                    log.info("Memory saved: key={}, value={}", key, value);
+                    System.out.println("[Memory] Saved: " + key + " = " + value);
+                }
+            }
+        } catch (Exception e) {
+            log.error("Failed to extract memory: {}", e.getMessage());
+            // Fallback: save the raw message
+            if (memoryManager != null) {
+                memoryManager.addFact("user-note", userMessage);
+            }
         }
     }
 
@@ -295,7 +372,13 @@ public class LoopAgent {
 
                 // Print text response if any
                 if (message.hasNonNull("content")) {
-                    System.out.println("\n🤖 AI: " + message.get("content").asText());
+                    String assistantContent = message.get("content").asText();
+                    System.out.println("\n🤖 AI: " + assistantContent);
+                    
+                    // Save assistant message to session
+                    if (memoryManager != null) {
+                        memoryManager.addMessage("assistant", assistantContent);
+                    }
                 }
 
                 // Handle tool calls

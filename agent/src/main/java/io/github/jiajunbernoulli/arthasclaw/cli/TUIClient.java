@@ -26,6 +26,7 @@ import io.github.jiajunbernoulli.arthasclaw.controller.providers.CompletionProvi
 import io.github.jiajunbernoulli.arthasclaw.controller.providers.OpenAICompletionProvider;
 import io.github.jiajunbernoulli.arthasclaw.cli.bootstrap.BotArthas;
 import io.github.jiajunbernoulli.arthasclaw.mcp.McpClient;
+import io.github.jiajunbernoulli.arthasclaw.memory.MemoryManager;
 import io.github.jiajunbernoulli.arthasclaw.skill.SkillManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,6 +64,7 @@ public class TUIClient {
     private Terminal terminal;
     private LineReader lineReader;
     private final SessionContext sessionContext;
+    private final MemoryManager memoryManager;
 
     /**
      * Main entry point for TUI client.
@@ -127,8 +129,13 @@ public class TUIClient {
         this.sessionContext = new SessionContext();
         log.info("Session started: {}", sessionContext.getSessionId());
         
+        // Create memory manager and start session
+        this.memoryManager = new MemoryManager();
+        this.memoryManager.startSession(sessionContext.getSessionId());
+        
         this.loopAgent = new LoopAgent(provider, mcpClient, config);
         this.loopAgent.setSessionContext(this.sessionContext);
+        this.loopAgent.setMemoryManager(this.memoryManager);
         
         this.skillManager = new SkillManager();
         this.dispatcher = new CommandDispatcher(loopAgent, mcpClient, skillManager, config, mapper);
@@ -215,6 +222,7 @@ public class TUIClient {
         String[][] dirs = {
                 {ARTHASCLAW_DIR, "home"},
                 {ARTHASCLAW_DIR + "/skills", "skills"},
+                {ARTHASCLAW_DIR + "/sessions", "sessions"},
                 {ARTHASCLAW_DIR + "/memory", "memory"},
                 {ARTHASCLAW_DIR + "/workspace", "workspace"},
                 {ARTHASCLAW_DIR + "/logs", "logs"}
@@ -320,6 +328,16 @@ public class TUIClient {
     private void cleanup() {
         log.info("Session ended: {}", sessionContext.getSessionId());
         printInfo("[*] Shutting down...");
+        
+        // Generate session summary and end session
+        if (memoryManager != null) {
+            String summary = generateSessionSummary();
+            memoryManager.endSession(summary);
+            if (summary != null) {
+                log.info("Session summary: {}", summary);
+            }
+        }
+        
         loopAgent.close();
         try {
             reader.close();
@@ -335,5 +353,59 @@ public class TUIClient {
         }
         // Close session context (clears MDC)
         sessionContext.close();
+    }
+
+    /**
+     * Generate a one-line summary of the session using LLM.
+     * 
+     * @return session summary or null if generation fails
+     */
+    private String generateSessionSummary() {
+        try {
+            // Get messages from loopAgent
+            ArrayNode messages = loopAgent.getMessages();
+            if (messages.size() <= 1) {
+                return "No conversation";
+            }
+
+            // Build summary prompt
+            StringBuilder conversation = new StringBuilder();
+            for (int i = 1; i < messages.size() && i < 20; i++) { // Skip system, limit to 20 messages
+                JsonNode msg = messages.get(i);
+                String role = msg.get("role").asText();
+                String content = msg.has("content") ? msg.get("content").asText() : "";
+                if (content.length() > 200) {
+                    content = content.substring(0, 200) + "...";
+                }
+                conversation.append(role).append(": ").append(content).append("\n");
+            }
+
+            String summaryPrompt = String.format(
+                "Summarize this diagnostic session in ONE short sentence (max 80 chars).\n\n" +
+                "Conversation:\n%s\n" +
+                "Summary:",
+                conversation.toString()
+            );
+
+            // Create temporary message for summary
+            ObjectNode summaryMsg = mapper.createObjectNode();
+            summaryMsg.put("role", "user");
+            summaryMsg.put("content", summaryPrompt);
+            ArrayNode summaryMessages = mapper.createArrayNode();
+            summaryMessages.add(summaryMsg);
+
+            ObjectNode response = provider.chatCompletion(summaryMessages, null);
+            if (response.hasNonNull("content")) {
+                String summary = response.get("content").asText().trim();
+                // Truncate if too long
+                if (summary.length() > 100) {
+                    summary = summary.substring(0, 97) + "...";
+                }
+                return summary;
+            }
+        } catch (Exception e) {
+            log.warn("Failed to generate session summary: {}", e.getMessage());
+        }
+        return null;
     }
 }
