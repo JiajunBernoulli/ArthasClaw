@@ -160,7 +160,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>io.github.jiajunbernoulli.arthasclaw.cli.TUIClient</mainClass>
+                            <mainClass>io.github.jiajunbernoulli.arthasclaw.interfaces.TUIClient</mainClass>
                         </manifest>
                     </archive>
                     <descriptorRefs>
