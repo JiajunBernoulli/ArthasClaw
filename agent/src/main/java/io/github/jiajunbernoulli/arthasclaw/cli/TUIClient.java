@@ -332,6 +332,10 @@ public class TUIClient {
         // Generate session summary and end session
         if (memoryManager != null) {
             String summary = generateSessionSummary();
+            // Fallback: use first user message if summary generation failed
+            if (summary == null) {
+                summary = getFirstUserMessage();
+            }
             memoryManager.endSession(summary);
             if (summary != null) {
                 log.info("Session summary: {}", summary);
@@ -405,6 +409,34 @@ public class TUIClient {
             }
         } catch (Exception e) {
             log.warn("Failed to generate session summary: {}", e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Get the first user message from the conversation.
+     * Used as fallback when LLM summary generation fails.
+     * 
+     * @return truncated first user message or null
+     */
+    private String getFirstUserMessage() {
+        try {
+            ArrayNode messages = loopAgent.getMessages();
+            for (int i = 1; i < messages.size(); i++) { // Skip system message
+                JsonNode msg = messages.get(i);
+                if ("user".equals(msg.get("role").asText())) {
+                    String content = msg.has("content") ? msg.get("content").asText() : "";
+                    if (!content.isEmpty()) {
+                        // Truncate to 80 chars for summary
+                        if (content.length() > 80) {
+                            content = content.substring(0, 77) + "...";
+                        }
+                        return "User query: " + content;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Failed to get first user message: {}", e.getMessage());
         }
         return null;
     }

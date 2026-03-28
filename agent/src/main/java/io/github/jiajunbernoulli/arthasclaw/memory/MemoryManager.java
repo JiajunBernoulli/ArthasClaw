@@ -203,15 +203,31 @@ public class MemoryManager {
     }
 
     /**
-     * Add a fact to memory.
+     * Add a fact to memory. If a fact with the same key exists, it will be updated.
      * 
      * @param key the fact key (e.g., "rootCause:thread-deadlock")
      * @param value the fact value
-     * @return the generated fact ID
+     * @return the fact ID (new or existing)
      */
-    public String addFact(String key, String value) {
+    public synchronized String addFact(String key, String value) {
         ObjectNode facts = loadFacts();
         ArrayNode factsArray = facts.has("facts") ? (ArrayNode) facts.get("facts") : mapper.createArrayNode();
+
+        // Check if key already exists and update it
+        for (int i = 0; i < factsArray.size(); i++) {
+            JsonNode existingFact = factsArray.get(i);
+            if (existingFact.has("key") && key.equals(existingFact.get("key").asText())) {
+                // Update existing fact
+                ObjectNode updatedFact = (ObjectNode) existingFact;
+                updatedFact.put("value", value);
+                updatedFact.put("updatedAt", Instant.now().toString());
+                factsArray.set(i, updatedFact);
+                facts.set("facts", factsArray);
+                saveFacts(facts);
+                log.info("Fact updated: key={}, value={}", key, truncate(value, 50));
+                return existingFact.get("id").asText();
+            }
+        }
 
         // Create new fact
         String factId = UUID.randomUUID().toString().substring(0, 8);
