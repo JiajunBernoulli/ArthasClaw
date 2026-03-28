@@ -73,15 +73,6 @@ export OPENAI_MODEL=gpt-4o-mini
 # Run with target PID
 cd agent/target
 java -jar bot-1.0.0-jar-with-dependencies.jar <PID>
-
-# Optional: adjust loop limits via JVM system properties
-# - DARTHASCLAW_MAX_ITERATIONS: max tool call iterations per request (default: 20)
-# - DARTHASCLAW_MAX_MESSAGES: max messages in conversation history (default: 50)
-# - DARTHASCLAW_MAX_RETRIES: max retry attempts for MCP operations (default: 3)
-# - DARTHASCLAW_LIST_TOOLS_TIMEOUT: timeout in seconds for listing tools (default: 5)
-# - DARTHASCLAW_TOOL_CALL_TIMEOUT: timeout in seconds for tool execution (default: 30)
-# - DARTHASCLAW_RETRY_DELAY_MS: delay in milliseconds between retries (default: 1000)
-java -DARTHASCLAW_MAX_ITERATIONS=30 -DARTHASCLAW_MAX_MESSAGES=100 -jar bot-1.0.0-jar-with-dependencies.jar <PID>
 ```
 
 ### 5. Ask Natural Language Questions
@@ -163,5 +154,3 @@ arthasclaw> /skill install https://raw.githubusercontent.com/JiajunBernoulli/Art
 
 ---
 
-# TODO
-- [ ] memory
