@@ -1,6 +1,6 @@
 # ArthasClaw Architecture
 
-## BotAgent.java - "Boot" Strategy
+## BotArthas.java - "Boot" Strategy
 
 1. **Detect/Download**: On startup, the program checks if `arthas-boot.jar` exists locally. If not, it automatically downloads from Alibaba Cloud.
 
@@ -14,9 +14,9 @@
 
 Our 3 classes play the role of MCP Client:
 
-- **BotAgent**: Responsible for "ignition" - injecting Arthas into the target process.
+- **BotArthas**: Responsible for "ignition" - injecting Arthas into the target process.
 - **McpClient**: Responsible for "connection" - connecting to the HTTP interface exposed by Arthas in the target process.
-- **AiAgent**: Responsible for "thinking" - converting your natural language into tool calls to Arthas.
+- **LoopAgent**: Responsible for "thinking" - converting your natural language into tool calls to Arthas.
 
 This is the charm of MCP (Model Context Protocol) - we don't need to re-implement diagnostic tools, we just need to connect to existing powerful tools (Arthas) through standard protocols.
 

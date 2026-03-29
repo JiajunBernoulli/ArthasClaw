@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package io.github.jiajunbernoulli.arthasclaw.infrastructure.llm;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -21,163 +22,167 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.github.jiajunbernoulli.arthasclaw.domain.CompletionProvider;
 import io.github.jiajunbernoulli.arthasclaw.infrastructure.config.Config;
-import okhttp3.*;
-
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
 
 /**
  * OpenAI API compatible completion provider.
  */
 public class OpenAICompletionProvider implements CompletionProvider {
 
-    private final String apiKey;
-    private final String model;
-    private final String baseUrl;
-    private final int timeoutSeconds;
-    private final double temperature;
-    private final int maxTokens;
-    private final double topP;
-    private final OkHttpClient httpClient;
-    private final ObjectMapper mapper = new ObjectMapper();
+  private final String apiKey;
+  private final String model;
+  private final String baseUrl;
+  private final int timeoutSeconds;
+  private final double temperature;
+  private final int maxTokens;
+  private final double topP;
+  private final OkHttpClient httpClient;
+  private final ObjectMapper mapper = new ObjectMapper();
 
-    /**
-     * Create provider from LLM config.
-     *
-     * @param llmConfig the LLM configuration
-     */
-    public OpenAICompletionProvider(Config.LlmConfig llmConfig) {
-        this.apiKey = llmConfig.getApiKey();
-        this.model = llmConfig.getModel() != null ? llmConfig.getModel() : "gpt-4o-mini";
-        this.timeoutSeconds = llmConfig.getTimeoutSeconds();
-        this.temperature = llmConfig.getTemperature();
-        this.maxTokens = llmConfig.getMaxTokens();
-        this.topP = llmConfig.getTopP();
+  /**
+   * Create provider from LLM config.
+   *
+   * @param config LLM configuration
+   */
+  public OpenAICompletionProvider(Config.LlmConfig config) {
+    this.apiKey = config.getApiKey();
+    this.model = config.getModel() != null ? config.getModel() : "gpt-4o-mini";
+    this.timeoutSeconds = config.getTimeoutSeconds();
+    this.temperature = config.getTemperature();
+    this.maxTokens = config.getMaxTokens();
+    this.topP = config.getTopP();
+    String tempUrl = config.getBaseUrl() != null ? config.getBaseUrl() : "https://api.openai.com/v1/chat/completions";
+    if (!tempUrl.endsWith("/chat/completions")) {
+      if (tempUrl.endsWith("/")) {
+        tempUrl += "chat/completions";
+      } else {
+        tempUrl += "/chat/completions";
+      }
+      System.out.println("[DEBUG] Adjusted API URL to: " + tempUrl);
+    }
+    this.baseUrl = tempUrl;
 
-        String tempUrl = llmConfig.getBaseUrl() != null ? llmConfig.getBaseUrl() : "https://api.openai.com/v1/chat/completions";
-        if (!tempUrl.endsWith("/chat/completions")) {
-            if (tempUrl.endsWith("/")) {
-                tempUrl += "chat/completions";
-            } else {
-                tempUrl += "/chat/completions";
-            }
-            System.out.println("[DEBUG] Adjusted API URL to: " + tempUrl);
-        }
-        this.baseUrl = tempUrl;
+    this.httpClient = new OkHttpClient.Builder()
+        .readTimeout(timeoutSeconds, TimeUnit.SECONDS)
+        .build();
+  }
 
-        this.httpClient = new OkHttpClient.Builder()
-                .readTimeout(timeoutSeconds, TimeUnit.SECONDS)
-                .build();
+  /**
+   * Legacy constructor for backward compatibility.
+   *
+   * @param apiKey  API key
+   * @param model   model name
+   * @param baseUrl base URL
+   */
+  public OpenAICompletionProvider(String apiKey, String model, String baseUrl) {
+    this.apiKey = apiKey;
+    this.model = model != null ? model : "gpt-4o-mini";
+    this.timeoutSeconds = 60;
+    this.temperature = 0.7;
+    this.maxTokens = 4096;
+    this.topP = 1.0;
+
+    String tempUrl = baseUrl != null ? baseUrl : "https://api.openai.com/v1/chat/completions";
+    if (!tempUrl.endsWith("/chat/completions")) {
+      if (tempUrl.endsWith("/")) {
+        tempUrl += "chat/completions";
+      } else {
+        tempUrl += "/chat/completions";
+      }
+      System.out.println("[DEBUG] Adjusted API URL to: " + tempUrl);
+    }
+    this.baseUrl = tempUrl;
+
+    this.httpClient = new OkHttpClient.Builder()
+        .readTimeout(timeoutSeconds, TimeUnit.SECONDS)
+        .build();
+  }
+
+  @Override
+  public ObjectNode chatCompletion(ArrayNode messages, ArrayNode toolsConfig) throws IOException {
+    // Validate messages before sending to LLM
+    if (messages == null || messages.size() == 0) {
+      throw new IllegalArgumentException("Messages cannot be null or empty");
     }
 
-    /**
-     * Legacy constructor for backward compatibility.
-     *
-     * @param apiKey  API key
-     * @param model   model name
-     * @param baseUrl base URL
-     */
-    public OpenAICompletionProvider(String apiKey, String model, String baseUrl) {
-        this.apiKey = apiKey;
-        this.model = model != null ? model : "gpt-4o-mini";
-        this.timeoutSeconds = 60;
-        this.temperature = 0.7;
-        this.maxTokens = 4096;
-        this.topP = 1.0;
-
-        String tempUrl = baseUrl != null ? baseUrl : "https://api.openai.com/v1/chat/completions";
-        if (!tempUrl.endsWith("/chat/completions")) {
-            if (tempUrl.endsWith("/")) {
-                tempUrl += "chat/completions";
-            } else {
-                tempUrl += "/chat/completions";
-            }
-            System.out.println("[DEBUG] Adjusted API URL to: " + tempUrl);
-        }
-        this.baseUrl = tempUrl;
-
-        this.httpClient = new OkHttpClient.Builder()
-                .readTimeout(timeoutSeconds, TimeUnit.SECONDS)
-                .build();
+    // Filter out invalid messages (null content)
+    ArrayNode validMessages = mapper.createArrayNode();
+    for (JsonNode msg : messages) {
+      if (msg.hasNonNull("content") && !msg.get("content").asText().trim().isEmpty()) {
+        validMessages.add(msg);
+      } else if (msg.has("role") && "system".equals(msg.get("role").asText())) {
+        // Keep system messages even if content is empty
+        validMessages.add(msg);
+      }
+      // Skip messages with null/empty content (non-system)
     }
 
-    @Override
-    public ObjectNode chatCompletion(ArrayNode messages, ArrayNode toolsConfig) throws IOException {
-        // Validate messages before sending to LLM
-        if (messages == null || messages.size() == 0) {
-            throw new IllegalArgumentException("Messages cannot be null or empty");
-        }
-
-        // Filter out invalid messages (null content)
-        ArrayNode validMessages = mapper.createArrayNode();
-        for (JsonNode msg : messages) {
-            if (msg.hasNonNull("content") && !msg.get("content").asText().trim().isEmpty()) {
-                validMessages.add(msg);
-            } else if (msg.has("role") && "system".equals(msg.get("role").asText())) {
-                // Keep system messages even if content is empty
-                validMessages.add(msg);
-            }
-            // Skip messages with null/empty content (non-system)
-        }
-
-        if (validMessages.size() == 0) {
-            throw new IllegalArgumentException("No valid messages to send (all content is null or empty)");
-        }
-
-        ObjectNode requestBody = mapper.createObjectNode();
-        requestBody.put("model", model);
-        requestBody.set("messages", validMessages);
-
-        // Add LLM parameters
-        requestBody.put("temperature", temperature);
-        requestBody.put("max_tokens", maxTokens);
-        requestBody.put("top_p", topP);
-
-        if (toolsConfig != null && toolsConfig.size() > 0) {
-            requestBody.set("tools", toolsConfig);
-        }
-
-        String json = mapper.writeValueAsString(requestBody);
-        Request request = new Request.Builder()
-                .url(baseUrl)
-                .header("Authorization", "Bearer " + apiKey)
-                .post(RequestBody.create(json, MediaType.parse("application/json")))
-                .build();
-
-        try (Response response = httpClient.newCall(request).execute()) {
-            String responseBody = response.body() != null ? response.body().string() : "";
-            if (!response.isSuccessful()) {
-                throw new IOException("API Error: " + response.code() + " " + response.message() + " - " + responseBody);
-            }
-
-            JsonNode responseJson = mapper.readTree(responseBody);
-            return (ObjectNode) responseJson.get("choices").get(0).get("message");
-        }
+    if (validMessages.size() == 0) {
+      throw new IllegalArgumentException(
+          "No valid messages to send (all content is null or empty)");
     }
 
-    @Override
-    public void close() {
-        httpClient.dispatcher().executorService().shutdown();
-        httpClient.connectionPool().evictAll();
+    ObjectNode requestBody = mapper.createObjectNode();
+    requestBody.put("model", model);
+    requestBody.set("messages", validMessages);
+
+    // Add LLM parameters
+    requestBody.put("temperature", temperature);
+    requestBody.put("max_tokens", maxTokens);
+    requestBody.put("top_p", topP);
+
+    if (toolsConfig != null && toolsConfig.size() > 0) {
+      requestBody.set("tools", toolsConfig);
     }
 
-    public String getModel() {
-        return model;
-    }
+    String json = mapper.writeValueAsString(requestBody);
+    Request request = new Request.Builder()
+        .url(baseUrl)
+        .header("Authorization", "Bearer " + apiKey)
+        .post(RequestBody.create(json, MediaType.parse("application/json")))
+        .build();
 
-    public String getBaseUrl() {
-        return baseUrl;
-    }
+    try (Response response = httpClient.newCall(request).execute()) {
+      String responseBody = response.body() != null ? response.body().string() : "";
+      if (!response.isSuccessful()) {
+        throw new IOException(
+          "API Error: " + response.code() + " " + response.message() + " - " + responseBody);
+      }
 
-    public double getTemperature() {
-        return temperature;
+      JsonNode responseJson = mapper.readTree(responseBody);
+      return (ObjectNode) responseJson.get("choices").get(0).get("message");
     }
+  }
 
-    public int getMaxTokens() {
-        return maxTokens;
-    }
+  @Override
+  public void close() {
+    httpClient.dispatcher().executorService().shutdown();
+    httpClient.connectionPool().evictAll();
+  }
 
-    public double getTopP() {
-        return topP;
-    }
+  public String getModel() {
+    return model;
+  }
+
+  public String getBaseUrl() {
+    return baseUrl;
+  }
+
+  public double getTemperature() {
+    return temperature;
+  }
+
+  public int getMaxTokens() {
+    return maxTokens;
+  }
+
+  public double getTopP() {
+    return topP;
+  }
 }

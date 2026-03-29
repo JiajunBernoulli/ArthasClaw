@@ -72,7 +72,7 @@ export OPENAI_MODEL=gpt-4o-mini
 
 # Run with target PID
 cd agent/target
-java -jar bot-1.0.0-jar-with-dependencies.jar <PID>
+java -jar arthas-claw-*-jar-with-dependencies.jar <PID>
 ```
 
 ### 5. Ask Natural Language Questions
