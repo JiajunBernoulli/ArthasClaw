@@ -13,11 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package io.github.jiajunbernoulli.arthasclaw.domain;
 
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-
 import java.io.IOException;
 
 /**
@@ -26,18 +26,18 @@ import java.io.IOException;
  */
 public interface CompletionProvider {
 
-    /**
-     * Send a chat completion request.
-     *
-     * @param messages the conversation messages
-     * @param toolsConfig the available tools configuration (can be null)
-     * @return the response message node
-     * @throws IOException if request fails
-     */
-    ObjectNode chatCompletion(ArrayNode messages, ArrayNode toolsConfig) throws IOException;
+  /**
+   * Send a chat completion request.
+   *
+   * @param messages the conversation messages
+   * @param toolsConfig the available tools configuration (can be null)
+   * @return the response message node
+   * @throws IOException if request fails
+   */
+  ObjectNode chatCompletion(ArrayNode messages, ArrayNode toolsConfig) throws IOException;
 
-    /**
-     * Close and cleanup resources.
-     */
-    void close();
+  /**
+   * Close and cleanup resources.
+   */
+  void close();
 }

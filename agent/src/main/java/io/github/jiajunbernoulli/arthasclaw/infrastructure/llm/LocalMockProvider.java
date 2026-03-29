@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package io.github.jiajunbernoulli.arthasclaw.infrastructure.llm;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -20,7 +21,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.github.jiajunbernoulli.arthasclaw.domain.CompletionProvider;
-
 import java.io.IOException;
 
 /**
@@ -28,35 +28,36 @@ import java.io.IOException;
  */
 public class LocalMockProvider implements CompletionProvider {
 
-    private final ObjectMapper mapper = new ObjectMapper();
+  private final ObjectMapper mapper = new ObjectMapper();
 
-    @Override
-    public ObjectNode chatCompletion(ArrayNode messages, ArrayNode toolsConfig) throws IOException {
-        // Get the last user message
-        String userMessage = "";
-        for (int i = messages.size() - 1; i >= 0; i--) {
-            JsonNode msg = messages.get(i);
-            if ("user".equals(msg.get("role").asText())) {
-                userMessage = msg.get("content").asText();
-                break;
-            }
-        }
-
-        ObjectNode response = mapper.createObjectNode();
-        response.put("role", "assistant");
-
-        // Simple mock response
-        String mockContent = "[Mock] I received your message: \"" + userMessage + "\". " +
-                "This is a local mock response. Use OpenAICompletionProvider for real AI responses.";
-        response.put("content", mockContent);
-
-        System.out.println("[MOCK] Returning mock response for: " + userMessage.substring(0, Math.min(50, userMessage.length())) + "...");
-
-        return response;
+  @Override
+  public ObjectNode chatCompletion(ArrayNode messages, ArrayNode toolsConfig) throws IOException {
+    // Get the last user message
+    String userMessage = "";
+    for (int i = messages.size() - 1; i >= 0; i--) {
+      JsonNode msg = messages.get(i);
+      if ("user".equals(msg.get("role").asText())) {
+        userMessage = msg.get("content").asText();
+        break;
+      }
     }
 
-    @Override
-    public void close() {
-        // No resources to cleanup
-    }
+    ObjectNode response = mapper.createObjectNode();
+    response.put("role", "assistant");
+
+    // Simple mock response
+    String mockContent = "[Mock] I received your message: \"" + userMessage + "\". "
+        + "This is a local mock response. Use OpenAICompletionProvider for real AI responses.";
+    response.put("content", mockContent);
+
+    String truncatedMessage = userMessage.substring(0, Math.min(50, userMessage.length()));
+    System.out.println("[MOCK] Returning mock response for: " + truncatedMessage + "...");
+
+    return response;
+  }
+
+  @Override
+  public void close() {
+    // No resources to cleanup
+  }
 }
