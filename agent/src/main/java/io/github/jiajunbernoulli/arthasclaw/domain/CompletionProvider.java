@@ -1,5 +1,6 @@
 /*
- * Copyright © 2026 Jiajun Bernoulli (jiajunbernoulli@users.noreply.github.com)
+ * Copyright © 2026 Jiajun Bernoulli
+ * (jiajunbernoulli@users.noreply.github.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,24 +18,26 @@ package io.github.jiajunbernoulli.arthasclaw.domain;
 
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-
 import java.io.IOException;
 
 /**
  * AI Completion Provider interface for different LLM backends.
- * This is a domain service interface - implementations are in infrastructure layer.
+ * This is a domain service interface.
+ * Implementations are in infrastructure layer.
  */
 public interface CompletionProvider {
 
     /**
      * Send a chat completion request.
      *
-     * @param messages the conversation messages
-     * @param toolsConfig the available tools configuration (can be null)
+     * @param messages     the conversation messages
+     * @param toolsConfig  the available tools configuration (can be null)
      * @return the response message node
      * @throws IOException if request fails
      */
-    ObjectNode chatCompletion(ArrayNode messages, ArrayNode toolsConfig) throws IOException;
+    ObjectNode chatCompletion(
+            ArrayNode messages,
+            ArrayNode toolsConfig) throws IOException;
 
     /**
      * Close and cleanup resources.

@@ -1,5 +1,6 @@
 /*
- * Copyright © 2026 Jiajun Bernoulli (jiajunbernoulli@users.noreply.github.com)
+ * Copyright © 2026 Jiajun Bernoulli
+ * (jiajunbernoulli@users.noreply.github.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +21,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.github.jiajunbernoulli.arthasclaw.domain.CompletionProvider;
-
 import java.io.IOException;
 
 /**
@@ -28,11 +28,24 @@ import java.io.IOException;
  */
 public class LocalMockProvider implements CompletionProvider {
 
+    /** Maximum length for truncated message in log. */
+    private static final int MAX_LOG_LENGTH = 50;
+
+    /** JSON object mapper. */
     private final ObjectMapper mapper = new ObjectMapper();
 
+    /**
+     * Send a chat completion request (mocked).
+     *
+     * @param messages     the conversation messages
+     * @param toolsConfig  the available tools configuration
+     * @return a mock response message node
+     * @throws IOException never thrown in mock
+     */
     @Override
-    public ObjectNode chatCompletion(ArrayNode messages, ArrayNode toolsConfig) throws IOException {
-        // Get the last user message
+    public ObjectNode chatCompletion(
+            final ArrayNode messages,
+            final ArrayNode toolsConfig) throws IOException {
         String userMessage = "";
         for (int i = messages.size() - 1; i >= 0; i--) {
             JsonNode msg = messages.get(i);
@@ -45,16 +58,23 @@ public class LocalMockProvider implements CompletionProvider {
         ObjectNode response = mapper.createObjectNode();
         response.put("role", "assistant");
 
-        // Simple mock response
-        String mockContent = "[Mock] I received your message: \"" + userMessage + "\". " +
-                "This is a local mock response. Use OpenAICompletionProvider for real AI responses.";
+        String mockContent = "[Mock] I received your message: \""
+                + userMessage + "\". "
+                + "This is a local mock response. "
+                + "Use OpenAICompletionProvider for real AI responses.";
         response.put("content", mockContent);
 
-        System.out.println("[MOCK] Returning mock response for: " + userMessage.substring(0, Math.min(50, userMessage.length())) + "...");
+        int logLength = Math.min(
+                MAX_LOG_LENGTH, userMessage.length());
+        System.out.println("[MOCK] Returning mock response for: "
+                + userMessage.substring(0, logLength) + "...");
 
         return response;
     }
 
+    /**
+     * Close and cleanup resources.
+     */
     @Override
     public void close() {
         // No resources to cleanup

@@ -1,5 +1,6 @@
 /*
- * Copyright © 2026 Jiajun Bernoulli (jiajunbernoulli@users.noreply.github.com)
+ * Copyright © 2026 Jiajun Bernoulli
+ * (jiajunbernoulli@users.noreply.github.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +21,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -33,19 +35,38 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Manages skill lifecycle operations including installation, listing, and removal.
+ * Manages skill lifecycle operations including installation,
+ * listing, and removal.
+ *
  * Skills are stored in ~/.arthasclaw/skills/
- * 
- * Uses lazy loading: metadata is loaded at startup, prompt content is loaded on demand.
+ * Uses lazy loading: metadata is loaded at startup,
+ * prompt content is loaded on demand.
  */
 public class SkillManager {
 
+    /** User home directory. */
     private static final String HOME_DIR = System.getProperty("user.home");
-    private static final String ARTHASCLAW_DIR = HOME_DIR + "/.arthasclaw";
-    private static final String DEFAULT_SKILLS_DIR = ARTHASCLAW_DIR + "/skills";
 
+    /** ArthasClaw directory. */
+    private static final String ARTHASCLAW_DIR = HOME_DIR + "/.arthasclaw";
+
+    /** Default skills directory. */
+    private static final String DEFAULT_SKILLS_DIR =
+            ARTHASCLAW_DIR + "/skills";
+
+    /** HTTP connection timeout in milliseconds. */
+    private static final int CONNECT_TIMEOUT = 10000;
+
+    /** HTTP read timeout in milliseconds. */
+    private static final int READ_TIMEOUT = 30000;
+
+    /** Path to skills directory. */
     private final Path skillsPath;
+
+    /** Parser for skill files. */
     private final SkillParser parser;
+
+    /** Cache of loaded skills by name. */
     private final Map<String, Skill> skillCache;
 
     /**
@@ -60,7 +81,7 @@ public class SkillManager {
      *
      * @param skillsDirPath custom path to skills directory
      */
-    public SkillManager(String skillsDirPath) {
+    public SkillManager(final String skillsDirPath) {
         this.skillsPath = Paths.get(skillsDirPath);
         this.parser = new SkillParser();
         this.skillCache = new ConcurrentHashMap<>();
@@ -76,7 +97,8 @@ public class SkillManager {
         try {
             Files.createDirectories(skillsPath);
         } catch (IOException e) {
-            throw new RuntimeException("Failed to create skills directory: " + skillsPath, e);
+            throw new RuntimeException(
+                    "Failed to create skills directory: " + skillsPath, e);
         }
     }
 
@@ -89,23 +111,39 @@ public class SkillManager {
             files.filter(this::isSkillFile)
                     .forEach(this::loadSkillMetadata);
         } catch (IOException e) {
-            System.err.println("[-] Failed to load skills: " + e.getMessage());
+            System.err.println(
+                    "[-] Failed to load skills: " + e.getMessage());
         }
     }
 
-    private boolean isSkillFile(Path path) {
+    /**
+     * Check if a file is a skill file.
+     *
+     * @param path the file path
+     * @return true if it's a skill file
+     */
+    private boolean isSkillFile(final Path path) {
         String name = path.getFileName().toString().toLowerCase();
-        return name.endsWith(".md") || name.endsWith(".yaml") || name.endsWith(".yml");
+        return name.endsWith(".md")
+                || name.endsWith(".yaml")
+                || name.endsWith(".yml");
     }
 
-    private void loadSkillMetadata(Path path) {
+    /**
+     * Load skill metadata from a file.
+     *
+     * @param path the file path
+     */
+    private void loadSkillMetadata(final Path path) {
         try {
             Skill skill = parser.parseMetadata(path);
             if (skill.getName() != null && !skill.getName().isEmpty()) {
                 skillCache.put(skill.getName(), skill);
             }
         } catch (IOException e) {
-            System.err.println("[-] Failed to parse skill metadata: " + path + " - " + e.getMessage());
+            System.err.println(
+                    "[-] Failed to parse skill metadata: " + path
+                    + " - " + e.getMessage());
         }
     }
 
@@ -116,7 +154,7 @@ public class SkillManager {
      * @return the installed skill
      * @throws IOException if installation fails
      */
-    public Skill install(String source) throws IOException {
+    public Skill install(final String source) throws IOException {
         String content;
         String defaultName;
 
@@ -128,7 +166,8 @@ public class SkillManager {
             if (!Files.exists(localPath)) {
                 throw new IOException("File not found: " + source);
             }
-            content = new String(Files.readAllBytes(localPath), "UTF-8");
+            content = new String(
+                    Files.readAllBytes(localPath), StandardCharsets.UTF_8);
             defaultName = localPath.getFileName().toString()
                     .replaceAll("\\.(md|yaml|yml)$", "");
         }
@@ -137,13 +176,11 @@ public class SkillManager {
         skill.setSource(source);
         skill.setInstalledAt(LocalDateTime.now());
 
-        // Save to skills directory
         String filename = skill.getName() + ".md";
         Path targetPath = skillsPath.resolve(filename);
-        Files.write(targetPath, content.getBytes("UTF-8"));
+        Files.write(targetPath, content.getBytes(StandardCharsets.UTF_8));
         skill.setFilePath(targetPath.toString());
 
-        // Update cache (metadata only, prompt already loaded by parseFromString)
         skillCache.put(skill.getName(), skill);
 
         return skill;
@@ -155,7 +192,7 @@ public class SkillManager {
      * @param name the skill name
      * @return true if removed, false if not found
      */
-    public boolean remove(String name) {
+    public boolean remove(final String name) {
         Skill skill = skillCache.remove(name);
         if (skill == null) {
             return false;
@@ -168,9 +205,9 @@ public class SkillManager {
             }
             return true;
         } catch (IOException e) {
-            // Re-add to cache if deletion failed
             skillCache.put(name, skill);
-            throw new RuntimeException("Failed to delete skill file: " + e.getMessage(), e);
+            throw new RuntimeException(
+                    "Failed to delete skill file: " + e.getMessage(), e);
         }
     }
 
@@ -180,7 +217,7 @@ public class SkillManager {
      * @param name the skill name
      * @return Optional containing the skill if found
      */
-    public Optional<Skill> get(String name) {
+    public Optional<Skill> get(final String name) {
         return Optional.ofNullable(skillCache.get(name));
     }
 
@@ -204,15 +241,17 @@ public class SkillManager {
         boolean first = true;
 
         for (Skill skill : skillCache.values()) {
-            // Lazy load prompt if not already loaded
             if (!skill.isPromptLoaded() && skill.getFilePath() != null) {
                 try {
-                    String prompt = parser.loadPrompt(Paths.get(skill.getFilePath()));
+                    String prompt = parser.loadPrompt(
+                            Paths.get(skill.getFilePath()));
                     if (prompt != null && !prompt.isEmpty()) {
                         skill.setPrompt(prompt);
                     }
                 } catch (IOException e) {
-                    System.err.println("[-] Failed to load prompt for skill: " + skill.getName() + " - " + e.getMessage());
+                    System.err.println(
+                            "[-] Failed to load prompt for skill: "
+                            + skill.getName() + " - " + e.getMessage());
                     continue;
                 }
             }
@@ -221,7 +260,9 @@ public class SkillManager {
                 if (!first) {
                     combined.append("\n\n---\n\n");
                 }
-                combined.append("## Skill: ").append(skill.getName()).append("\n\n");
+                combined.append("## Skill: ")
+                        .append(skill.getName())
+                        .append("\n\n");
                 combined.append(skill.getPrompt());
                 first = false;
             }
@@ -261,18 +302,30 @@ public class SkillManager {
         return skillCache.size();
     }
 
-    // Helper methods
-
-    private boolean isUrl(String source) {
-        return source.startsWith("http://") || source.startsWith("https://");
+    /**
+     * Check if a source string is a URL.
+     *
+     * @param source the source string
+     * @return true if it's a URL
+     */
+    private boolean isUrl(final String source) {
+        return source.startsWith("http://")
+                || source.startsWith("https://");
     }
 
-    private String downloadFromUrl(String urlStr) throws IOException {
+    /**
+     * Download content from a URL.
+     *
+     * @param urlStr the URL string
+     * @return the downloaded content
+     * @throws IOException if download fails
+     */
+    private String downloadFromUrl(final String urlStr) throws IOException {
         URL url = new URL(urlStr);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestMethod("GET");
-        conn.setConnectTimeout(10000);
-        conn.setReadTimeout(30000);
+        conn.setConnectTimeout(CONNECT_TIMEOUT);
+        conn.setReadTimeout(READ_TIMEOUT);
 
         int responseCode = conn.getResponseCode();
         if (responseCode != HttpURLConnection.HTTP_OK) {
@@ -292,19 +345,22 @@ public class SkillManager {
         }
     }
 
-    private String extractNameFromUrl(String url) {
+    /**
+     * Extract a skill name from a URL.
+     *
+     * @param url the URL string
+     * @return the extracted name
+     */
+    private String extractNameFromUrl(final String url) {
         String path = url;
-        // Remove query parameters
         int queryIndex = path.indexOf('?');
         if (queryIndex > 0) {
             path = path.substring(0, queryIndex);
         }
-        // Get last segment
         int lastSlash = path.lastIndexOf('/');
         if (lastSlash >= 0) {
             path = path.substring(lastSlash + 1);
         }
-        // Remove extension
         return path.replaceAll("\\.(md|yaml|yml)$", "");
     }
 }

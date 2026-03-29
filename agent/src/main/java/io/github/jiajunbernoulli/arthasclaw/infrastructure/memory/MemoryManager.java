@@ -1,5 +1,6 @@
 /*
- * Copyright © 2026 Jiajun Bernoulli (jiajunbernoulli@users.noreply.github.com)
+ * Copyright © 2026 Jiajun Bernoulli
+ * (jiajunbernoulli@users.noreply.github.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,10 +20,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -35,39 +32,79 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Manages session history and memory (facts) storage.
- * 
+ *
  * Sessions are stored in ~/.arthasclaw/sessions/sess_xxx.json
  * Memory (facts) are stored in ~/.arthasclaw/memory/facts.json
  */
 public class MemoryManager {
 
-    private static final Logger log = LoggerFactory.getLogger(MemoryManager.class);
+    /** Logger instance. */
+    private static final Logger LOG =
+            LoggerFactory.getLogger(MemoryManager.class);
 
+    /** User home directory. */
     private static final String HOME_DIR = System.getProperty("user.home");
-    private static final String ARTHASCLAW_DIR = HOME_DIR + "/.arthasclaw";
-    private static final String SESSIONS_DIR = ARTHASCLAW_DIR + "/sessions";
-    private static final String MEMORY_DIR = ARTHASCLAW_DIR + "/memory";
-    private static final String FACTS_FILE = MEMORY_DIR + "/facts.json";
 
-    // Keywords that trigger memory extraction (Chinese and English)
+    /** ArthasClaw directory. */
+    private static final String ARTHASCLAW_DIR = HOME_DIR + "/.arthasclaw";
+
+    /** Sessions directory. */
+    private static final String SESSIONS_DIR =
+            ARTHASCLAW_DIR + "/sessions";
+
+    /** Memory directory. */
+    private static final String MEMORY_DIR =
+            ARTHASCLAW_DIR + "/memory";
+
+    /** Facts file path. */
+    private static final String FACTS_FILE =
+            MEMORY_DIR + "/facts.json";
+
+    /** Pattern for memory-related keywords. */
     private static final Pattern MEMORY_KEYWORDS = Pattern.compile(
-            "(记住|记得|别忘了|不要忘记|记一下|mark|remember|note|don't forget)",
+            "(记住|记得|别忘了|不要忘记|记一下|mark|remember|note|"
+            + "don't forget)",
             Pattern.CASE_INSENSITIVE
     );
 
+    /** Milliseconds per day. */
+    private static final long MILLIS_PER_DAY = 24L * 60 * 60 * 1000;
+
+    /** Maximum truncate length for logging. */
+    private static final int MAX_TRUNCATE_LENGTH = 50;
+
+    /** JSON object mapper. */
     private final ObjectMapper mapper;
+
+    /** Path to sessions directory. */
     private final Path sessionsDir;
+
+    /** Path to memory directory. */
     private final Path memoryDir;
+
+    /** Path to facts file. */
     private final Path factsFile;
 
+    /** Current session ID. */
     private String currentSessionId;
+
+    /** Current session file path. */
     private Path currentSessionFile;
+
+    /** Current session JSON object. */
     private ObjectNode currentSession;
+
+    /** Current session messages array. */
     private ArrayNode sessionMessages;
 
+    /**
+     * Create a new MemoryManager.
+     */
     public MemoryManager() {
         this.mapper = new ObjectMapper();
         this.sessionsDir = Paths.get(SESSIONS_DIR);
@@ -85,7 +122,7 @@ public class MemoryManager {
             Files.createDirectories(sessionsDir);
             Files.createDirectories(memoryDir);
         } catch (IOException e) {
-            log.error("Failed to create directories: {}", e.getMessage());
+            LOG.error("Failed to create directories: {}", e.getMessage());
         }
     }
 
@@ -93,14 +130,13 @@ public class MemoryManager {
 
     /**
      * Start a new session.
-     * 
+     *
      * @param sessionId the session ID (e.g., "sess_a1b2c3d4")
      */
-    public void startSession(String sessionId) {
+    public void startSession(final String sessionId) {
         this.currentSessionId = sessionId;
         this.currentSessionFile = sessionsDir.resolve(sessionId + ".json");
 
-        // Create new session object
         currentSession = mapper.createObjectNode();
         currentSession.put("sessionId", sessionId);
         currentSession.put("startedAt", Instant.now().toString());
@@ -109,21 +145,22 @@ public class MemoryManager {
         sessionMessages = mapper.createArrayNode();
         currentSession.set("messages", sessionMessages);
 
-        // Save initial session
         saveSession();
 
-        log.info("Session started: {}", sessionId);
+        LOG.info("Session started: {}", sessionId);
     }
 
     /**
      * Add a message to the current session.
-     * 
-     * @param role the message role (user, assistant, tool)
+     *
+     * @param role    the message role (user, assistant, tool)
      * @param content the message content
      */
-    public void addMessage(String role, String content) {
+    public void addMessage(
+            final String role,
+            final String content) {
         if (currentSession == null || sessionMessages == null) {
-            log.warn("No active session, cannot add message");
+            LOG.warn("No active session, cannot add message");
             return;
         }
 
@@ -134,18 +171,18 @@ public class MemoryManager {
 
         sessionMessages.add(message);
 
-        // Save session after each message
         saveSession();
 
-        log.debug("Message added to session: role={}, length={}", role, content.length());
+        LOG.debug("Message added to session: role={}, length={}",
+                role, content.length());
     }
 
     /**
      * End the current session with an optional summary.
-     * 
+     *
      * @param summary the session summary (can be null)
      */
-    public void endSession(String summary) {
+    public void endSession(final String summary) {
         if (currentSession == null) {
             return;
         }
@@ -157,7 +194,8 @@ public class MemoryManager {
 
         saveSession();
 
-        log.info("Session ended: {}, messages={}", currentSessionId, sessionMessages.size());
+        LOG.info("Session ended: {}, messages={}",
+                currentSessionId, sessionMessages.size());
 
         currentSession = null;
         sessionMessages = null;
@@ -174,14 +212,17 @@ public class MemoryManager {
         }
 
         try {
-            mapper.writerWithDefaultPrettyPrinter().writeValue(currentSessionFile.toFile(), currentSession);
+            mapper.writerWithDefaultPrettyPrinter()
+                    .writeValue(currentSessionFile.toFile(), currentSession);
         } catch (IOException e) {
-            log.error("Failed to save session: {}", e.getMessage());
+            LOG.error("Failed to save session: {}", e.getMessage());
         }
     }
 
     /**
      * Get the current session ID.
+     *
+     * @return current session ID
      */
     public String getCurrentSessionId() {
         return currentSessionId;
@@ -191,11 +232,11 @@ public class MemoryManager {
 
     /**
      * Check if the user message contains memory-related keywords.
-     * 
+     *
      * @param userMessage the user message
      * @return true if the message should trigger memory extraction
      */
-    public boolean shouldExtractMemory(String userMessage) {
+    public boolean shouldExtractMemory(final String userMessage) {
         if (userMessage == null || userMessage.isEmpty()) {
             return false;
         }
@@ -203,33 +244,37 @@ public class MemoryManager {
     }
 
     /**
-     * Add a fact to memory. If a fact with the same key exists, it will be updated.
-     * 
-     * @param key the fact key (e.g., "rootCause:thread-deadlock")
+     * Add a fact to memory.
+     * If a fact with the same key exists, it will be updated.
+     *
+     * @param key   the fact key (e.g., "rootCause:thread-deadlock")
      * @param value the fact value
      * @return the fact ID (new or existing)
      */
-    public synchronized String addFact(String key, String value) {
+    public synchronized String addFact(
+            final String key,
+            final String value) {
         ObjectNode facts = loadFacts();
-        ArrayNode factsArray = facts.has("facts") ? (ArrayNode) facts.get("facts") : mapper.createArrayNode();
+        ArrayNode factsArray = facts.has("facts")
+                ? (ArrayNode) facts.get("facts")
+                : mapper.createArrayNode();
 
-        // Check if key already exists and update it
         for (int i = 0; i < factsArray.size(); i++) {
             JsonNode existingFact = factsArray.get(i);
-            if (existingFact.has("key") && key.equals(existingFact.get("key").asText())) {
-                // Update existing fact
+            if (existingFact.has("key")
+                    && key.equals(existingFact.get("key").asText())) {
                 ObjectNode updatedFact = (ObjectNode) existingFact;
                 updatedFact.put("value", value);
                 updatedFact.put("updatedAt", Instant.now().toString());
                 factsArray.set(i, updatedFact);
                 facts.set("facts", factsArray);
                 saveFacts(facts);
-                log.info("Fact updated: key={}, value={}", key, truncate(value, 50));
+                LOG.info("Fact updated: key={}, value={}",
+                        key, truncate(value, MAX_TRUNCATE_LENGTH));
                 return existingFact.get("id").asText();
             }
         }
 
-        // Create new fact
         String factId = UUID.randomUUID().toString().substring(0, 8);
         ObjectNode fact = mapper.createObjectNode();
         fact.put("id", factId);
@@ -243,13 +288,14 @@ public class MemoryManager {
 
         saveFacts(facts);
 
-        log.info("Fact saved: key={}, value={}", key, truncate(value, 50));
+        LOG.info("Fact saved: key={}, value={}",
+                key, truncate(value, MAX_TRUNCATE_LENGTH));
         return factId;
     }
 
     /**
      * Load all facts from file.
-     * 
+     *
      * @return the facts object
      */
     private ObjectNode loadFacts() {
@@ -262,7 +308,7 @@ public class MemoryManager {
         try {
             return (ObjectNode) mapper.readTree(factsFile.toFile());
         } catch (IOException e) {
-            log.error("Failed to load facts: {}", e.getMessage());
+            LOG.error("Failed to load facts: {}", e.getMessage());
             ObjectNode empty = mapper.createObjectNode();
             empty.set("facts", mapper.createArrayNode());
             return empty;
@@ -271,22 +317,25 @@ public class MemoryManager {
 
     /**
      * Save facts to file.
+     *
+     * @param facts the facts object to save
      */
-    private void saveFacts(ObjectNode facts) {
+    private void saveFacts(final ObjectNode facts) {
         try {
-            mapper.writerWithDefaultPrettyPrinter().writeValue(factsFile.toFile(), facts);
+            mapper.writerWithDefaultPrettyPrinter()
+                    .writeValue(factsFile.toFile(), facts);
         } catch (IOException e) {
-            log.error("Failed to save facts: {}", e.getMessage());
+            LOG.error("Failed to save facts: {}", e.getMessage());
         }
     }
 
     /**
      * Get all facts as a formatted string for context injection.
-     * 
+     *
      * @param maxLength maximum length of the returned string
      * @return formatted facts string
      */
-    public String getFactsContext(int maxLength) {
+    public String getFactsContext(final int maxLength) {
         ObjectNode facts = loadFacts();
         if (!facts.has("facts") || facts.get("facts").size() == 0) {
             return "";
@@ -298,8 +347,11 @@ public class MemoryManager {
         ArrayNode factsArray = (ArrayNode) facts.get("facts");
         for (int i = 0; i < factsArray.size(); i++) {
             JsonNode fact = factsArray.get(i);
-            sb.append("- ").append(fact.get("key").asText())
-              .append(": ").append(fact.get("value").asText()).append("\n");
+            sb.append("- ")
+              .append(fact.get("key").asText())
+              .append(": ")
+              .append(fact.get("value").asText())
+              .append("\n");
         }
 
         String result = sb.toString();
@@ -312,18 +364,19 @@ public class MemoryManager {
 
     /**
      * Get recent sessions for context (limited by count).
-     * 
+     *
      * @param count maximum number of sessions to load
      * @return formatted sessions string
      */
-    public String getRecentSessionsContext(int count) {
+    public String getRecentSessionsContext(final int count) {
         try {
             List<Path> sessionFiles = new ArrayList<>();
             Files.list(sessionsDir)
                     .filter(p -> p.toString().endsWith(".json"))
                     .sorted((a, b) -> {
                         try {
-                            return Files.getLastModifiedTime(b).compareTo(Files.getLastModifiedTime(a));
+                            return Files.getLastModifiedTime(b)
+                                    .compareTo(Files.getLastModifiedTime(a));
                         } catch (IOException e) {
                             return 0;
                         }
@@ -340,27 +393,40 @@ public class MemoryManager {
 
             for (Path file : sessionFiles) {
                 try {
-                    ObjectNode session = (ObjectNode) mapper.readTree(file.toFile());
+                    ObjectNode session = (ObjectNode) mapper
+                            .readTree(file.toFile());
                     String sessionId = session.get("sessionId").asText();
-                    String summary = session.has("summary") ? session.get("summary").asText() : "No summary";
+                    String summary = session.has("summary")
+                            ? session.get("summary").asText()
+                            : "No summary";
 
-                    // Try to parse startedAt for date
                     String date = "Unknown date";
                     if (session.has("startedAt")) {
                         try {
-                            Instant instant = Instant.parse(session.get("startedAt").asText());
-                            date = LocalDateTime.ofInstant(instant, ZoneId.systemDefault())
-                                    .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
-                        } catch (Exception ignored) {}
+                            Instant instant = Instant.parse(
+                                    session.get("startedAt").asText());
+                            date = LocalDateTime.ofInstant(
+                                    instant, ZoneId.systemDefault())
+                                    .format(DateTimeFormatter.ofPattern(
+                                            "yyyy-MM-dd HH:mm"));
+                        } catch (Exception ignored) {
+                            // Ignore parsing errors
+                        }
                     }
 
-                    sb.append("- ").append(date).append(": ").append(summary).append("\n");
-                } catch (Exception ignored) {}
+                    sb.append("- ")
+                      .append(date)
+                      .append(": ")
+                      .append(summary)
+                      .append("\n");
+                } catch (Exception ignored) {
+                    // Ignore parsing errors
+                }
             }
 
             return sb.toString();
         } catch (IOException e) {
-            log.error("Failed to load recent sessions: {}", e.getMessage());
+            LOG.error("Failed to load recent sessions: {}", e.getMessage());
             return "";
         }
     }
@@ -369,18 +435,20 @@ public class MemoryManager {
 
     /**
      * Clean up old sessions older than specified days.
-     * 
+     *
      * @param daysToKeep number of days to keep
      */
-    public void cleanupOldSessions(int daysToKeep) {
-        long cutoffTime = System.currentTimeMillis() - (daysToKeep * 24L * 60 * 60 * 1000);
+    public void cleanupOldSessions(final int daysToKeep) {
+        long cutoffTime = System.currentTimeMillis()
+                - (daysToKeep * MILLIS_PER_DAY);
 
         try {
             Files.list(sessionsDir)
                     .filter(p -> p.toString().endsWith(".json"))
                     .filter(p -> {
                         try {
-                            return Files.getLastModifiedTime(p).toMillis() < cutoffTime;
+                            return Files.getLastModifiedTime(p)
+                                    .toMillis() < cutoffTime;
                         } catch (IOException e) {
                             return false;
                         }
@@ -388,20 +456,34 @@ public class MemoryManager {
                     .forEach(p -> {
                         try {
                             Files.delete(p);
-                            log.debug("Deleted old session: {}", p.getFileName());
+                            LOG.debug(
+                                "Deleted old session: {}",
+                                p.getFileName());
                         } catch (IOException e) {
-                            log.warn("Failed to delete old session: {}", p);
+                            LOG.warn(
+                                "Failed to delete old session: {}", p);
                         }
                     });
         } catch (IOException e) {
-            log.error("Failed to cleanup old sessions: {}", e.getMessage());
+            LOG.error("Failed to cleanup old sessions: {}", e.getMessage());
         }
     }
 
     // ==================== Helpers ====================
 
-    private String truncate(String str, int maxLen) {
-        if (str == null) return "";
-        return str.length() > maxLen ? str.substring(0, maxLen) + "..." : str;
+    /**
+     * Truncate a string to a maximum length.
+     *
+     * @param str    the string to truncate
+     * @param maxLen maximum length
+     * @return truncated string
+     */
+    private String truncate(final String str, final int maxLen) {
+        if (str == null) {
+            return "";
+        }
+        return str.length() > maxLen
+                ? str.substring(0, maxLen) + "..."
+                : str;
     }
 }

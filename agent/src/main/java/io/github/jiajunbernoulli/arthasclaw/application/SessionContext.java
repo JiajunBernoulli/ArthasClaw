@@ -1,5 +1,6 @@
 /*
- * Copyright © 2026 Jiajun Bernoulli (jiajunbernoulli@users.noreply.github.com)
+ * Copyright © 2026 Jiajun Bernoulli
+ * (jiajunbernoulli@users.noreply.github.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,36 +16,45 @@
  */
 package io.github.jiajunbernoulli.arthasclaw.application;
 
-import org.slf4j.MDC;
-
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.slf4j.MDC;
 
 /**
  * Manages session and request context for logging and tracing.
- * Uses SLF4J MDC (Mapped Diagnostic Context) to inject IDs into log messages.
- * 
+ * Uses SLF4J MDC (Mapped Diagnostic Context) to inject IDs
+ * into log messages.
+ *
  * Session ID format: sess_xxxxxxxx (8-char prefix of UUID)
  * Request ID format: req_XXX (3-digit sequential number per session)
  */
 public class SessionContext {
 
+    /** MDC key for session ID. */
     private static final String SESSION_ID_KEY = "sessionId";
+
+    /** MDC key for request ID. */
     private static final String REQUEST_ID_KEY = "requestId";
+
+    /** MDC key for iteration number. */
     private static final String ITERATION_KEY = "iteration";
 
+    /** UUID hex string length for session ID. */
+    private static final int UUID_HEX_LENGTH = 8;
+
+    /** The session ID. */
     private final String sessionId;
+
+    /** Counter for requests within this session. */
     private final AtomicInteger requestCounter = new AtomicInteger(0);
 
     /**
      * Create a new session context with a generated session ID.
      */
     public SessionContext() {
-        // Generate session ID: sess_ + first 8 chars of UUID
         String uuid = UUID.randomUUID().toString().replace("-", "");
-        this.sessionId = "sess_" + uuid.substring(0, 8);
-        
-        // Set in MDC
+        this.sessionId = "sess_" + uuid.substring(0, UUID_HEX_LENGTH);
+
         MDC.put(SESSION_ID_KEY, sessionId);
         MDC.put(REQUEST_ID_KEY, "-");
         MDC.put(ITERATION_KEY, "-");
@@ -52,7 +62,7 @@ public class SessionContext {
 
     /**
      * Get the session ID.
-     * 
+     *
      * @return session ID string (e.g., "sess_a1b2c3d4")
      */
     public String getSessionId() {
@@ -62,7 +72,7 @@ public class SessionContext {
     /**
      * Start a new request and return the request ID.
      * Updates MDC with the new request ID.
-     * 
+     *
      * @return request ID string (e.g., "req_001")
      */
     public String startRequest() {
@@ -75,10 +85,10 @@ public class SessionContext {
 
     /**
      * Set the current iteration number in MDC.
-     * 
+     *
      * @param iteration the iteration number (1-based)
      */
-    public void setIteration(int iteration) {
+    public void setIteration(final int iteration) {
         MDC.put(ITERATION_KEY, String.format("%02d", iteration));
     }
 
@@ -101,7 +111,7 @@ public class SessionContext {
 
     /**
      * Get the current request ID from MDC.
-     * 
+     *
      * @return current request ID or "-" if not in a request
      */
     public static String getCurrentRequestId() {
@@ -111,19 +121,24 @@ public class SessionContext {
 
     /**
      * Get the current session ID from MDC.
-     * 
+     *
      * @return current session ID or "-" if not in a session
      */
     public static String getCurrentSessionId() {
-        String sessionId = MDC.get(SESSION_ID_KEY);
-        return sessionId != null ? sessionId : "-";
+        String sessId = MDC.get(SESSION_ID_KEY);
+        return sessId != null ? sessId : "-";
     }
 
+    /**
+     * Get string representation of this context.
+     *
+     * @return formatted string with session info
+     */
     @Override
     public String toString() {
-        return String.format("SessionContext[%s, request=%s, iteration=%s]", 
-                sessionId, 
-                MDC.get(REQUEST_ID_KEY), 
+        return String.format("SessionContext[%s, request=%s, iteration=%s]",
+                sessionId,
+                MDC.get(REQUEST_ID_KEY),
                 MDC.get(ITERATION_KEY));
     }
 }

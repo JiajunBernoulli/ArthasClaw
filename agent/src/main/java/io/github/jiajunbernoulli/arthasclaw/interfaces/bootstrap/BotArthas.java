@@ -1,5 +1,6 @@
 /*
- * Copyright © 2026 Jiajun Bernoulli (jiajunbernoulli@users.noreply.github.com)
+ * Copyright © 2026 Jiajun Bernoulli
+ * (jiajunbernoulli@users.noreply.github.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,9 +18,9 @@ package io.github.jiajunbernoulli.arthasclaw.interfaces.bootstrap;
 
 import io.github.jiajunbernoulli.arthasclaw.infrastructure.config.Config;
 import io.github.jiajunbernoulli.arthasclaw.infrastructure.mcp.McpClient;
-
 import java.io.File;
 import java.io.FileWriter;
+import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -28,29 +29,46 @@ import java.util.concurrent.TimeUnit;
  */
 public class BotArthas {
 
+    /** Arthas boot jar download URL. */
+    private static final String ARTHAS_BOOT_URL =
+            "https://arthas.aliyun.com/arthas-boot.jar";
+
+    /** Arthas config directory name. */
+    private static final String ARTHAS_CONF_DIR = ".arthas/conf";
+
+    /** Arthas lib directory pattern. */
+    private static final String ARTHAS_LIB_PATTERN = ".arthas/lib/%s/arthas";
+
+    /** Target JVM process ID. */
     private final String pid;
+
+    /** MCP configuration. */
     private final Config.McpConfig mcpConfig;
+
+    /** MCP password for authentication. */
     private String mcpPassword;
+
+    /** MCP client instance. */
     private McpClient mcpClient;
 
     /**
      * Create BotArthas with configuration.
      *
-     * @param pid    target JVM process ID
-     * @param config ArthasClaw configuration
+     * @param targetPid target JVM process ID
+     * @param config    ArthasClaw configuration
      */
-    public BotArthas(String pid, Config config) {
-        this.pid = pid;
+    public BotArthas(final String targetPid, final Config config) {
+        this.pid = targetPid;
         this.mcpConfig = config.getMcp();
     }
 
     /**
      * Legacy constructor for backward compatibility.
      *
-     * @param pid target JVM process ID
+     * @param targetPid target JVM process ID
      */
-    public BotArthas(String pid) {
-        this(pid, new Config());
+    public BotArthas(final String targetPid) {
+        this(targetPid, new Config());
     }
 
     /**
@@ -62,16 +80,14 @@ public class BotArthas {
     public McpClient attach() throws Exception {
         System.out.println("[*] Attaching Arthas to PID: " + pid);
 
-        // Generate MCP password
-        mcpPassword = java.util.UUID.randomUUID().toString().replace("-", "");
+        mcpPassword = java.util.UUID.randomUUID()
+                .toString()
+                .replace("-", "");
 
-        // Write Arthas configuration
         writeArthasConfig();
 
-        // Attach Arthas
         attachArthas();
 
-        // Connect MCP
         connectMcp();
 
         return mcpClient;
@@ -79,28 +95,35 @@ public class BotArthas {
 
     /**
      * Write Arthas properties file to enable MCP Server.
+     *
+     * @throws IOException if writing fails
      */
-    private void writeArthasConfig() throws Exception {
+    private void writeArthasConfig() throws IOException {
         String userHome = System.getProperty("user.home");
-        File confDir = new File(userHome, ".arthas/conf");
+        File confDir = new File(userHome, ARTHAS_CONF_DIR);
         if (!confDir.exists()) {
             confDir.mkdirs();
         }
         File propertiesFile = new File(confDir, "arthas.properties");
         try (FileWriter writer = new FileWriter(propertiesFile)) {
-            writer.write("# MCP (Model Context Protocol) configuration\n");
-            writer.write("arthas.mcpEndpoint=" + mcpConfig.getEndpoint() + "\n");
+            writer.write(
+                    "# MCP (Model Context Protocol) configuration\n");
+            writer.write("arthas.mcpEndpoint="
+                    + mcpConfig.getEndpoint() + "\n");
             writer.write("arthas.password=" + mcpPassword + "\n");
         }
     }
 
     /**
      * Attach Arthas to the target JVM process.
+     *
+     * @throws Exception if attachment fails
      */
     private void attachArthas() throws Exception {
         String arthasVersion = mcpConfig.getArthasVersion();
         String userHome = System.getProperty("user.home");
-        String arthasHome = userHome + "/.arthas/lib/" + arthasVersion + "/arthas";
+        String arthasHome = String.format(
+                userHome + "/" + ARTHAS_LIB_PATTERN, arthasVersion);
         File arthasCore = new File(arthasHome, "arthas-core.jar");
 
         if (!arthasCore.exists()) {
@@ -112,48 +135,74 @@ public class BotArthas {
 
     /**
      * Download Arthas and attach to target process.
+     *
+     * @param arthasVersion the Arthas version to download
+     * @throws Exception if download or attachment fails
      */
-    private void downloadAndAttach(String arthasVersion) throws Exception {
-        System.out.println("[*] Arthas core not found. Downloading arthas-boot.jar...");
-        ProcessBuilder pb = new ProcessBuilder("curl", "-sL", "-O", "https://arthas.aliyun.com/arthas-boot.jar");
+    private void downloadAndAttach(final String arthasVersion)
+            throws Exception {
+        System.out.println(
+                "[*] Arthas core not found. Downloading arthas-boot.jar...");
+        ProcessBuilder pb = new ProcessBuilder(
+                "curl", "-sL", "-O", ARTHAS_BOOT_URL);
         pb.inheritIO().start().waitFor();
 
-        System.out.println("[*] Running arthas-boot to download full Arthas package...");
-        ProcessBuilder pb2 = new ProcessBuilder("java", "-jar", "arthas-boot.jar",
+        System.out.println(
+                "[*] Running arthas-boot to download full Arthas package...");
+        ProcessBuilder pb2 = new ProcessBuilder(
+                "java", "-jar", "arthas-boot.jar",
                 "--use-version", arthasVersion, "--attach-only", pid);
         pb2.inheritIO().start().waitFor();
-        System.out.println("[+] Arthas attached successfully via boot jar.");
+        System.out.println(
+                "[+] Arthas attached successfully via boot jar.");
     }
 
     /**
      * Attach using existing Arthas installation.
+     *
+     * @param arthasHome    the Arthas home directory
+     * @param arthasVersion the Arthas version
+     * @throws Exception if attachment fails
      */
-    private void attachWithExistingInstallation(String arthasHome, String arthasVersion) throws Exception {
-        System.out.println("[*] Attaching with existing Arthas installation...");
+    private void attachWithExistingInstallation(
+            final String arthasHome,
+            final String arthasVersion) throws Exception {
+        System.out.println(
+                "[*] Attaching with existing Arthas installation...");
         File arthasBoot = new File(arthasHome, "arthas-boot.jar");
 
         if (arthasBoot.exists()) {
-            ProcessBuilder pb = new ProcessBuilder("java", "-jar",
+            ProcessBuilder pb = new ProcessBuilder(
+                    "java", "-jar",
                     arthasBoot.getAbsolutePath(), "--attach-only", pid);
             pb.inheritIO().start().waitFor();
-            System.out.println("[+] Arthas attached successfully via boot jar.");
+            System.out.println(
+                    "[+] Arthas attached successfully via boot jar.");
         } else {
-            System.out.println("[!] arthas-boot.jar not found in " + arthasHome + ", downloading...");
+            System.out.println(
+                    "[!] arthas-boot.jar not found in " + arthasHome
+                    + ", downloading...");
             downloadAndAttach(arthasVersion);
         }
     }
 
     /**
      * Connect to Arthas MCP Server.
+     *
+     * @throws Exception if connection fails
      */
     private void connectMcp() throws Exception {
-        System.out.println("[*] Connecting to Arthas MCP Server on port " + mcpConfig.getPort() + "...");
+        System.out.println(
+                "[*] Connecting to Arthas MCP Server on port "
+                + mcpConfig.getPort() + "...");
         mcpClient = new McpClient(mcpConfig.getBaseUrl(), mcpPassword);
 
-        mcpClient.connect().get(mcpConfig.getConnectTimeoutSeconds(), TimeUnit.SECONDS);
+        mcpClient.connect().get(
+                mcpConfig.getConnectTimeoutSeconds(), TimeUnit.SECONDS);
         System.out.println("[+] Connected to SSE endpoint.");
 
-        mcpClient.initialize().get(mcpConfig.getInitializeTimeoutSeconds(), TimeUnit.SECONDS);
+        mcpClient.initialize().get(
+                mcpConfig.getInitializeTimeoutSeconds(), TimeUnit.SECONDS);
         System.out.println("[+] Initialized MCP session.");
     }
 

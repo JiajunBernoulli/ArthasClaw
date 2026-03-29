@@ -1,5 +1,6 @@
 /*
- * Copyright © 2026 Jiajun Bernoulli (jiajunbernoulli@users.noreply.github.com)
+ * Copyright © 2026 Jiajun Bernoulli
+ * (jiajunbernoulli@users.noreply.github.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,19 +20,15 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import io.github.jiajunbernoulli.arthasclaw.infrastructure.config.Config;
 import io.github.jiajunbernoulli.arthasclaw.application.LoopAgent;
-import io.github.jiajunbernoulli.arthasclaw.infrastructure.mcp.McpClient;
 import io.github.jiajunbernoulli.arthasclaw.domain.skill.Skill;
 import io.github.jiajunbernoulli.arthasclaw.domain.skill.SkillManager;
-
+import io.github.jiajunbernoulli.arthasclaw.infrastructure.config.Config;
+import io.github.jiajunbernoulli.arthasclaw.infrastructure.mcp.McpClient;
 import java.io.BufferedReader;
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-
-import static io.github.jiajunbernoulli.arthasclaw.interfaces.DisplayHelper.*;
 
 /**
  * Dispatches and handles user commands in the TUI.
@@ -43,25 +40,53 @@ import static io.github.jiajunbernoulli.arthasclaw.interfaces.DisplayHelper.*;
  */
 public class CommandDispatcher {
 
+    /** Agent loop for processing queries. */
     private final LoopAgent loopAgent;
+
+    /** MCP client for tool execution. */
     private final McpClient mcpClient;
+
+    /** Skill manager for handling skills. */
     private final SkillManager skillManager;
+
+    /** Application configuration. */
     private final Config config;
+
+    /** JSON object mapper. */
     private final ObjectMapper mapper;
+
+    /** Tools configuration from MCP. */
     private ArrayNode toolsConfig;
+
+    /** Whether the dispatcher is still running. */
     private boolean running = true;
 
-    public CommandDispatcher(LoopAgent loopAgent, McpClient mcpClient, SkillManager skillManager, 
-                             Config config, ObjectMapper mapper) {
-        this.loopAgent = loopAgent;
-        this.mcpClient = mcpClient;
-        this.skillManager = skillManager;
-        this.config = config;
-        this.mapper = mapper;
+    /**
+     * Create a new CommandDispatcher.
+     *
+     * @param agent        the loop agent
+     * @param client       the MCP client
+     * @param skills       the skill manager
+     * @param cfg          the configuration
+     * @param objectMapper the JSON mapper
+     */
+    public CommandDispatcher(
+            final LoopAgent agent,
+            final McpClient client,
+            final SkillManager skills,
+            final Config cfg,
+            final ObjectMapper objectMapper) {
+        this.loopAgent = agent;
+        this.mcpClient = client;
+        this.skillManager = skills;
+        this.config = cfg;
+        this.mapper = objectMapper;
     }
 
     /**
      * Check if the dispatcher is still running.
+     *
+     * @return true if running
      */
     public boolean isRunning() {
         return running;
@@ -69,8 +94,10 @@ public class CommandDispatcher {
 
     /**
      * Process a user command.
+     *
+     * @param input the user input
      */
-    public void processCommand(String input) {
+    public void processCommand(final String input) {
         if (input.startsWith("/")) {
             handleSystemCommand(input.substring(1));
         } else if (input.startsWith("!")) {
@@ -84,13 +111,17 @@ public class CommandDispatcher {
 
     /**
      * Set tools configuration.
+     *
+     * @param newToolsConfig the tools configuration array
      */
-    public void setToolsConfig(ArrayNode toolsConfig) {
-        this.toolsConfig = toolsConfig;
+    public void setToolsConfig(final ArrayNode newToolsConfig) {
+        this.toolsConfig = newToolsConfig;
     }
 
     /**
      * Get tools configuration.
+     *
+     * @return the tools configuration array
      */
     public ArrayNode getToolsConfig() {
         return toolsConfig;
@@ -98,7 +129,12 @@ public class CommandDispatcher {
 
     // ==================== System Commands ====================
 
-    private void handleSystemCommand(String cmd) {
+    /**
+     * Handle system commands starting with /.
+     *
+     * @param cmd the command string (without /)
+     */
+    private void handleSystemCommand(final String cmd) {
         String[] parts = cmd.split("\\s+", 2);
         String command = parts[0].toLowerCase();
         String args = parts.length > 1 ? parts[1] : "";
@@ -107,31 +143,31 @@ public class CommandDispatcher {
             case "quit":
             case "exit":
             case "q":
-                printInfo("[*] Goodbye!");
+                DisplayHelper.printInfo("[*] Goodbye!");
                 running = false;
                 break;
 
             case "help":
             case "h":
             case "?":
-                printHelp();
+                DisplayHelper.printHelp();
                 break;
 
             case "clear":
                 loopAgent.clearMessages();
-                printInfo("[*] Conversation history cleared");
+                DisplayHelper.printInfo("[*] Conversation history cleared");
                 break;
 
             case "tools":
-                printTools(toolsConfig);
+                DisplayHelper.printTools(toolsConfig);
                 break;
 
             case "history":
-                printHistory(loopAgent.getMessages());
+                DisplayHelper.printHistory(loopAgent.getMessages());
                 break;
 
             case "config":
-                printConfig(config);
+                DisplayHelper.printConfig(config);
                 break;
 
             case "version":
@@ -143,16 +179,24 @@ public class CommandDispatcher {
                 break;
 
             default:
-                printError("[-] Unknown system command: /" + command);
-                printWarning("    Type /help to see available commands");
+                DisplayHelper.printError(
+                        "[-] Unknown system command: /" + command);
+                DisplayHelper.printWarning(
+                        "    Type /help to see available commands");
         }
     }
 
     // ==================== Skill Commands ====================
 
-    private void handleSkillCommand(String args) {
+    /**
+     * Handle skill subcommands.
+     *
+     * @param args the skill subcommand and arguments
+     */
+    private void handleSkillCommand(final String args) {
         if (args.isEmpty()) {
-            printError("[-] Usage: /skill <install|list|show|remove> [args]");
+            DisplayHelper.printError(
+                    "[-] Usage: /skill <install|list|show|remove> [args]");
             return;
         }
 
@@ -180,66 +224,96 @@ public class CommandDispatcher {
                 break;
 
             default:
-                printError("[-] Unknown skill command: " + subCommand);
-                printWarning("    Available: install, list, show, remove");
+                DisplayHelper.printError(
+                        "[-] Unknown skill command: " + subCommand);
+                DisplayHelper.printWarning(
+                        "    Available: install, list, show, remove");
         }
     }
 
-    private void installSkill(String source) {
+    /**
+     * Install a skill from source.
+     *
+     * @param source the source URL or path
+     */
+    private void installSkill(final String source) {
         if (source.isEmpty()) {
-            printError("[-] Usage: /skill install <url|path>");
+            DisplayHelper.printError("[-] Usage: /skill install <url|path>");
             return;
         }
 
-        printWarning("[*] Installing skill from: " + source);
+        DisplayHelper.printWarning("[*] Installing skill from: " + source);
         try {
             Skill skill = skillManager.install(source);
-            printSuccess("[+] Skill installed: " + skill.getName() +
-                    (skill.getVersion() != null ? " v" + skill.getVersion() : ""));
+            String versionInfo = skill.getVersion() != null
+                    ? " v" + skill.getVersion()
+                    : "";
+            DisplayHelper.printSuccess(
+                    "[+] Skill installed: " + skill.getName() + versionInfo);
             if (skill.getDescription() != null) {
-                System.out.println("    Description: " + skill.getDescription());
+                System.out.println(
+                        "    Description: " + skill.getDescription());
             }
             updateLoopAgentSkills();
         } catch (Exception e) {
-            printError("[-] Failed to install skill: " + e.getMessage());
+            DisplayHelper.printError(
+                    "[-] Failed to install skill: " + e.getMessage());
         }
     }
 
+    /**
+     * List all installed skills.
+     */
     private void listSkills() {
         List<Skill> skills = skillManager.listAll();
-        printSkills(skills);
+        DisplayHelper.printSkills(skills);
     }
 
-    private void showSkill(String name) {
+    /**
+     * Show details of a skill.
+     *
+     * @param name the skill name
+     */
+    private void showSkill(final String name) {
         if (name.isEmpty()) {
-            printError("[-] Usage: /skill show <name>");
+            DisplayHelper.printError("[-] Usage: /skill show <name>");
             return;
         }
 
         skillManager.get(name).ifPresentOrElse(
                 DisplayHelper::printSkillDetails,
-                () -> printError("[-] Skill not found: " + name)
+                () -> DisplayHelper.printError(
+                        "[-] Skill not found: " + name)
         );
     }
 
-    private void removeSkill(String name) {
+    /**
+     * Remove a skill.
+     *
+     * @param name the skill name
+     */
+    private void removeSkill(final String name) {
         if (name.isEmpty()) {
-            printError("[-] Usage: /skill remove <name>");
+            DisplayHelper.printError("[-] Usage: /skill remove <name>");
             return;
         }
 
         try {
             if (skillManager.remove(name)) {
-                printSuccess("[+] Skill removed: " + name);
+                DisplayHelper.printSuccess("[+] Skill removed: " + name);
                 updateLoopAgentSkills();
             } else {
-                printError("[-] Skill not found: " + name);
+                DisplayHelper.printError("[-] Skill not found: " + name);
             }
         } catch (Exception e) {
-            printError("[-] Failed to remove skill: " + e.getMessage());
+            DisplayHelper.printError(
+                    "[-] Failed to remove skill: " + e.getMessage());
         }
     }
 
+    /**
+     * Update LoopAgent with current skills.
+     */
     private void updateLoopAgentSkills() {
         String combinedPrompt = skillManager.getCombinedPrompt();
         loopAgent.setSkillsPrompt(combinedPrompt);
@@ -247,13 +321,19 @@ public class CommandDispatcher {
 
     // ==================== Shell Commands ====================
 
-    private void handleShellCommand(String cmd) {
+    /**
+     * Handle shell commands starting with !.
+     *
+     * @param cmd the shell command
+     */
+    private void handleShellCommand(final String cmd) {
         if (cmd.isEmpty()) {
-            printError("[-] Please enter a shell command to execute");
+            DisplayHelper.printError(
+                    "[-] Please enter a shell command to execute");
             return;
         }
 
-        printWarning("[Shell] Executing: " + cmd);
+        DisplayHelper.printWarning("[Shell] Executing: " + cmd);
         System.out.println();
 
         try {
@@ -261,7 +341,8 @@ public class CommandDispatcher {
             pb.redirectErrorStream(true);
             Process process = pb.start();
 
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(process.getInputStream()));
             String line;
             while ((line = reader.readLine()) != null) {
                 System.out.println("  " + line);
@@ -270,66 +351,79 @@ public class CommandDispatcher {
             int exitCode = process.waitFor();
             System.out.println();
             if (exitCode == 0) {
-                printSuccess("[+] Command completed (exit code: " + exitCode + ")");
+                DisplayHelper.printSuccess(
+                        "[+] Command completed (exit code: " + exitCode + ")");
             } else {
-                printError("[-] Command failed (exit code: " + exitCode + ")");
+                DisplayHelper.printError(
+                        "[-] Command failed (exit code: " + exitCode + ")");
             }
 
         } catch (Exception e) {
-            printError("[-] Execution failed: " + e.getMessage());
+            DisplayHelper.printError(
+                    "[-] Execution failed: " + e.getMessage());
         }
     }
 
     // ==================== Arthas Commands ====================
 
-    private void handleArthasCommand(String cmd) {
+    /**
+     * Handle Arthas commands starting with $.
+     *
+     * @param cmd the Arthas command
+     */
+    private void handleArthasCommand(final String cmd) {
         if (cmd.isEmpty()) {
-            printError("[-] Please enter an Arthas command to execute");
+            DisplayHelper.printError(
+                    "[-] Please enter an Arthas command to execute");
             return;
         }
 
-        printWarning("[Arthas] Executing: " + cmd);
+        DisplayHelper.printWarning("[Arthas] Executing: " + cmd);
         System.out.println();
 
         try {
-            // Parse command and arguments
             String[] parts = cmd.split("\\s+", 2);
             String command = parts[0];
             String args = parts.length > 1 ? parts[1] : "";
 
-            // Build MCP request
             ObjectNode arguments = mapper.createObjectNode();
             arguments.put("command", command);
             if (!args.isEmpty()) {
-                // Parse args into individual parameters
                 String[] argParts = args.split("\\s+");
                 for (int i = 0; i < argParts.length; i++) {
                     arguments.put("arg" + i, argParts[i]);
                 }
             }
 
-            // Try to call via MCP - use the command as tool name
-            JsonNode mcpResult = mcpClient.callTool(command, arguments).get(
-                    config.getAgent().getToolCallTimeoutSeconds(), TimeUnit.SECONDS);
+            JsonNode mcpResult = mcpClient.callTool(command, arguments)
+                    .get(config.getAgent().getToolCallTimeoutSeconds(),
+                            TimeUnit.SECONDS);
 
-            // Extract and print result
             String resultStr = extractMcpResult(mcpResult);
             System.out.println(resultStr);
             System.out.println();
-            printSuccess("[+] Arthas command completed");
+            DisplayHelper.printSuccess("[+] Arthas command completed");
 
         } catch (Exception e) {
-            // If direct tool call fails, try using AI to interpret
-            printWarning("[-] Direct execution failed, trying via AI...");
+            DisplayHelper.printWarning(
+                    "[-] Direct execution failed, trying via AI...");
             handleNaturalLanguage("Execute Arthas command: " + cmd);
         }
     }
 
-    private String extractMcpResult(JsonNode mcpResult) {
+    /**
+     * Extract text result from MCP response.
+     *
+     * @param mcpResult the MCP result node
+     * @return extracted text
+     */
+    private String extractMcpResult(final JsonNode mcpResult) {
         StringBuilder sb = new StringBuilder();
-        if (mcpResult.has("content") && mcpResult.get("content").isArray()) {
+        if (mcpResult.has("content")
+                && mcpResult.get("content").isArray()) {
             for (JsonNode content : mcpResult.get("content")) {
-                if (content.has("type") && "text".equals(content.get("type").asText())) {
+                if (content.has("type")
+                        && "text".equals(content.get("type").asText())) {
                     sb.append(content.get("text").asText()).append("\n");
                 }
             }
@@ -342,11 +436,15 @@ public class CommandDispatcher {
 
     // ==================== Natural Language ====================
 
-    private void handleNaturalLanguage(String input) {
+    /**
+     * Handle natural language input.
+     *
+     * @param input the user input
+     */
+    private void handleNaturalLanguage(final String input) {
         if (input.isEmpty()) {
             return;
         }
-        // Delegate to LoopAgent for processing
         loopAgent.processQuery(input);
     }
 }
