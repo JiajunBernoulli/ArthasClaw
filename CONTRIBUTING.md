@@ -28,10 +28,14 @@ io.github.jiajunbernoulli.arthasclaw/
 │
 ├── domain/                 # Domain Layer (Core Business Logic)
 │   ├── CompletionProvider.java - LLM interface (port)
-│   └── skill/
-│       ├── Skill.java          - Skill entity
-│       ├── SkillManager.java   - Skill lifecycle management
-│       └── SkillParser.java    - Skill file parser
+│   ├── skill/
+│   │   ├── Skill.java          - Skill entity
+│   │   ├── SkillManager.java   - Skill lifecycle management
+│   │   └── SkillParser.java    - Skill file parser
+│   └── task/
+│       ├── Task.java           - Task entity with lifecycle state
+│       ├── TaskManager.java    - Async task creation and management
+│       └── TaskExecutor.java   - Task execution logic
 │
 └── infrastructure/         # Infrastructure Layer (Adapters)
     ├── config/
