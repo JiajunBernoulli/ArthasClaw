@@ -21,6 +21,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.github.jiajunbernoulli.arthasclaw.domain.CompletionProvider;
+import io.github.jiajunbernoulli.arthasclaw.domain.task.Task;
+import io.github.jiajunbernoulli.arthasclaw.domain.task.TaskExecutor;
+import io.github.jiajunbernoulli.arthasclaw.domain.task.TaskManager;
 import io.github.jiajunbernoulli.arthasclaw.infrastructure.config.Config;
 import io.github.jiajunbernoulli.arthasclaw.infrastructure.mcp.McpClient;
 import io.github.jiajunbernoulli.arthasclaw.infrastructure.memory.MemoryManager;
@@ -36,6 +39,9 @@ import org.slf4j.LoggerFactory;
 public class LoopAgent {
   private static final Logger log = LoggerFactory.getLogger(LoopAgent.class);
   
+  // Detect if terminal supports ANSI colors
+  private static final boolean SUPPORTS_COLOR = detectColorSupport();
+  
   private final CompletionProvider provider;
   private final ObjectMapper mapper = new ObjectMapper();
   private final McpClient mcpClient;
@@ -44,6 +50,8 @@ public class LoopAgent {
   private String skillsPrompt;
   private SessionContext sessionContext;
   private MemoryManager memoryManager;
+  private TaskManager taskManager;
+  private TaskExecutor taskExecutor;
 
   // Configuration values
   private final int maxIterations;
@@ -60,7 +68,17 @@ public class LoopAgent {
       + "Language Rule: Always reply in the same language that the user used to ask the question. "
       + "- If the input is Chinese, output Chinese. "
       + "- If the input is English, output English. "
-      + "- Do not output translations unless explicitly asked.";
+      + "- Do not output translations unless explicitly asked.\n\n"
+      + "# Async Task Support\n"
+      + "For long-running operations (e.g., watching a method multiple times, collecting samples), "
+      + "use the `create_async_task` tool to create a background task. This allows the user to "
+      + "continue interacting while the task runs.\n"
+      + "Typical use cases:\n"
+      + "- Watch a method N times: create_async_task with task_type='watch_method'\n"
+      + "- Collect performance samples over time\n"
+      + "- Any operation that needs to wait for multiple events\n"
+      + "After creating a task, inform the user of the task_id and how to check status (/tasks) "
+      + "or cancel it (/stop <task_id>).";
 
   /**
    * Create LoopAgent with configuration.
@@ -74,6 +92,8 @@ public class LoopAgent {
     this.mcpClient = mcpClient;
     this.messages = mapper.createArrayNode();
     this.skillsPrompt = "";
+    this.taskManager = new TaskManager();
+    this.taskExecutor = new TaskExecutor(mcpClient, taskManager);
 
     // Load configuration
     Config.AgentConfig agentConfig = config.getAgent();
@@ -179,6 +199,17 @@ public class LoopAgent {
     String truncatedInput = input.length() > 200 ? input.substring(0, 200) + "..." : input;
     log.info("[{}] User query: {}", requestId, truncatedInput);
 
+    // Handle system commands
+    if (input.startsWith("/")) {
+      handleSystemCommand(input);
+      // End request context
+      if (sessionContext != null) {
+        sessionContext.endRequest();
+      }
+      log.debug("[{}] Request completed", requestId);
+      return;
+    }
+
     // Check if user wants to save something to memory
     boolean shouldExtractMemory = memoryManager != null && memoryManager.shouldExtractMemory(input);
     String userMessageForMemory = input;
@@ -207,6 +238,145 @@ public class LoopAgent {
       }
       log.debug("[{}] Request completed", requestId);
     }
+  }
+
+  /**
+   * Handle system commands like /tasks and /stop taskId.
+   *
+   * @param command system command
+   */
+  private void handleSystemCommand(String command) {
+    String[] parts = command.trim().split("\\s+");
+    String cmd = parts[0].toLowerCase();
+
+    switch (cmd) {
+      case "/tasks":
+        listTasks();
+        break;
+      case "/stop":
+        if (parts.length > 1) {
+          String taskId = parts[1];
+          cancelTask(taskId);
+        } else {
+          System.out.println("❌ Usage: /stop <taskId>");
+        }
+        break;
+      default:
+        System.out.println("❌ Unknown command. Available commands: /tasks, /stop <taskId>");
+        break;
+    }
+  }
+
+  /**
+   * List all tasks.
+   */
+  private void listTasks() {
+    if (taskManager.getTaskCount() == 0) {
+      System.out.println("📋 No tasks found");
+      return;
+    }
+
+    System.out.println("📋 Task List:");
+    System.out.println("-----------------------------------------------------------------------");
+    System.out.println("Task ID      | Description              | Status    | Updated At");
+    System.out.println("-----------------------------------------------------------------------");
+
+    String resetCode = SUPPORTS_COLOR ? "\033[0m" : "";
+    for (Task task : taskManager.getAllTasks()) {
+      String status = task.getStatus().toString();
+      String statusColor = getStatusColor(status);
+      String updatedAt = task.getUpdatedAt().toString().substring(0, 19);
+      
+      System.out.printf("%-12s | %-25s | %s%-7s%s | %s\n", 
+          task.getId(), 
+          truncateDescription(task.getDescription(), 25), 
+          statusColor, 
+          status, 
+          resetCode, 
+          updatedAt);
+    }
+
+    System.out.println("-----------------------------------------------------------------------");
+  }
+
+  /**
+   * Cancel a task by ID.
+   *
+   * @param taskId task ID
+   */
+  private void cancelTask(String taskId) {
+    boolean cancelled = taskManager.cancelTask(taskId);
+    if (cancelled) {
+      System.out.println("✅ Task cancelled: " + taskId);
+    } else {
+      System.out.println("❌ Task not found or cannot be cancelled: " + taskId);
+    }
+  }
+
+  /**
+   * Detect if the terminal supports ANSI color codes.
+   *
+   * @return true if colors are supported
+   */
+  private static boolean detectColorSupport() {
+    // Check if running in a terminal
+    if (System.console() == null) {
+      return false;
+    }
+    // Check for Windows (older versions don't support ANSI)
+    String osName = System.getProperty("os.name", "").toLowerCase();
+    if (osName.contains("windows")) {
+      // Windows 10+ supports ANSI, but hard to detect reliably
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Get color code for task status.
+   *
+   * @param status task status
+   * @return color code (empty string if colors not supported)
+   */
+  private String getStatusColor(String status) {
+    if (!SUPPORTS_COLOR) {
+      return "";
+    }
+    switch (status) {
+      case "RUNNING":
+        return "\033[34m";
+      case "COMPLETED":
+        return "\033[32m";
+      case "FAILED":
+        return "\033[31m";
+      case "CANCELLED":
+        return "\033[33m";
+      default:
+        return "\033[37m";
+    }
+  }
+
+  /**
+   * Truncate description to fit in table.
+   *
+   * @param description task description
+   * @param maxLength maximum length
+   * @return truncated description
+   */
+  private String truncateDescription(String description, int maxLength) {
+    if (description.length() <= maxLength) {
+      return description;
+    }
+    return description.substring(0, maxLength - 3) + "...";
+  }
+
+  /**
+   * Get task manager instance.
+   *
+   * @return task manager
+   */
+  public TaskManager getTaskManager() {
+    return taskManager;
   }
 
   /**
@@ -300,6 +470,88 @@ public class LoopAgent {
   }
 
   /**
+   * Add built-in tools to the tools configuration.
+   *
+   * @param toolsArray the tools array to add to
+   */
+  private void addBuiltInTools(ArrayNode toolsArray) {
+    // create_async_task tool for long-running operations
+    ObjectNode asyncTaskTool = mapper.createObjectNode();
+    asyncTaskTool.put("type", "function");
+    
+    ObjectNode function = mapper.createObjectNode();
+    function.put("name", "create_async_task");
+    function.put("description", 
+        "Create an async task for long-running operations. "
+        + "Use this when the user wants to monitor/collect data over time "
+        + "(e.g., watch a method N times, collect samples). "
+        + "The task runs in background, user can check status with /tasks or cancel with /stop.");
+    
+    ObjectNode params = mapper.createObjectNode();
+    params.put("type", "object");
+    
+    // task_type
+    ObjectNode taskType = mapper.createObjectNode();
+    taskType.put("type", "string");
+    ArrayNode enumValues = mapper.createArrayNode();
+    enumValues.add("watch_method");
+    enumValues.add("collect_samples");
+    taskType.set("enum", enumValues);
+    taskType.put("description", "Type: watch_method (monitor calls) or collect_samples");
+    
+    ObjectNode properties = mapper.createObjectNode();
+    properties.set("task_type", taskType);
+    
+    // description
+    ObjectNode descProp = mapper.createObjectNode();
+    descProp.put("type", "string");
+    descProp.put("description", "Human-readable description of what this task does");
+    properties.set("description", descProp);
+    
+    // class_pattern
+    ObjectNode classPattern = mapper.createObjectNode();
+    classPattern.put("type", "string");
+    classPattern.put("description", "Class pattern for watch_method task (e.g. 'MathGame')");
+    properties.set("class_pattern", classPattern);
+    
+    // method_pattern
+    ObjectNode methodPattern = mapper.createObjectNode();
+    methodPattern.put("type", "string");
+    methodPattern.put("description", "Method pattern for watch_method task (e.g. 'run')");
+    properties.set("method_pattern", methodPattern);
+    
+    // count
+    ObjectNode countProp = mapper.createObjectNode();
+    countProp.put("type", "integer");
+    countProp.put("description", "Number of times to watch/collect (default: 10)");
+    properties.set("count", countProp);
+    
+    // interval_ms
+    ObjectNode intervalMs = mapper.createObjectNode();
+    intervalMs.put("type", "integer");
+    intervalMs.put("description", "Interval between watches in ms (default: 1000)");
+    properties.set("interval_ms", intervalMs);
+    
+    // express
+    ObjectNode expressProp = mapper.createObjectNode();
+    expressProp.put("type", "string");
+    expressProp.put("description", "Watch expression (default: '{params, returnObj, #cost}')");
+    properties.set("express", expressProp);
+    
+    params.set("properties", properties);
+    
+    ArrayNode required = mapper.createArrayNode();
+    required.add("task_type");
+    required.add("description");
+    params.set("required", required);
+    
+    function.set("parameters", params);
+    asyncTaskTool.set("function", function);
+    
+    toolsArray.add(asyncTaskTool);
+  }
+
+  /**
    * Fetch tools from MCP server.
    *
    * @return array of tools
@@ -339,6 +591,10 @@ public class LoopAgent {
         }
         log.info("Successfully loaded {} tools from Arthas", openAiTools.size());
         System.out.println(String.format("[+] Loaded %d tools from Arthas.", openAiTools.size()));
+        
+        // Add built-in async task tool
+        addBuiltInTools(openAiTools);
+        
         return openAiTools;
       } catch (java.util.concurrent.TimeoutException e) {
         lastException = e;
@@ -428,10 +684,22 @@ public class LoopAgent {
 
             ObjectNode arguments = (ObjectNode) mapper.readTree(functionArgsStr);
 
-            // Execute via MCP with timing
-            long toolStartTime = System.currentTimeMillis();
+            // Handle built-in create_async_task tool
             String toolResultStr;
             final String toolCallId = toolCall.get("id").asText();
+            if ("create_async_task".equals(functionName)) {
+              toolResultStr = handleCreateAsyncTask(arguments);
+              ObjectNode toolMsg = mapper.createObjectNode();
+              toolMsg.put("role", "tool");
+              toolMsg.put("tool_call_id", toolCallId);
+              toolMsg.put("name", functionName);
+              toolMsg.put("content", toolResultStr);
+              messages.add(toolMsg);
+              continue;
+            }
+
+            // Execute via MCP with timing
+            long toolStartTime = System.currentTimeMillis();
             try {
               JsonNode mcpResult = mcpClient.callTool(functionName, arguments)
                   .get(toolCallTimeoutSeconds, TimeUnit.SECONDS);
@@ -538,6 +806,133 @@ public class LoopAgent {
           "[-] Reached max iterations (" + maxIterations + "), "
           + "stopping to prevent infinite loop.");
     }
+  }
+
+  /**
+   * Handle create_async_task tool call.
+   *
+   * @param arguments tool arguments
+   * @return result message
+   */
+  private String handleCreateAsyncTask(ObjectNode arguments) {
+    try {
+      String taskType = arguments.has("task_type") 
+          ? arguments.get("task_type").asText() : "watch_method";
+      String description = arguments.has("description") 
+          ? arguments.get("description").asText() : "Async task";
+      String classPattern = arguments.has("class_pattern") 
+          ? arguments.get("class_pattern").asText() : null;
+      String methodPattern = arguments.has("method_pattern") 
+          ? arguments.get("method_pattern").asText() : null;
+      int count = arguments.has("count") 
+          ? arguments.get("count").asInt() : 10;
+      long intervalMs = arguments.has("interval_ms") 
+          ? arguments.get("interval_ms").asLong() : 1000L;
+      String express = arguments.has("express") 
+          ? arguments.get("express").asText() : "{params, returnObj, #cost}";
+
+      // Create task
+      Task task = taskManager.createTask(description);
+
+      if ("watch_method".equals(taskType)) {
+        if (classPattern == null || methodPattern == null) {
+          return "Error: class_pattern and method_pattern are required for watch_method task";
+        }
+
+        // Execute watch method task
+        executeWatchMethodTask(task, classPattern, methodPattern, count, intervalMs, express);
+
+        return String.format(
+            "Async task created successfully.\n"
+            + "Task ID: %s\n"
+            + "Description: %s\n"
+            + "Type: %s\n"
+            + "Target: %s.%s\n"
+            + "Count: %d times\n"
+            + "Interval: %dms\n\n"
+            + "Use /tasks to check status or /stop %s to cancel.",
+            task.getId(), description, taskType, classPattern, methodPattern, count, intervalMs, 
+            task.getId());
+      } else {
+        return "Error: Unknown task type: " + taskType;
+      }
+    } catch (Exception e) {
+      log.error("Failed to create async task", e);
+      return "Error creating async task: " + e.getMessage();
+    }
+  }
+
+  /**
+   * Execute a watch method task.
+   *
+   * @param task task to execute
+   * @param classPattern class pattern
+   * @param methodPattern method pattern
+   * @param count number of times to watch
+   * @param intervalMs interval between watches
+   * @param express watch expression
+   */
+  private void executeWatchMethodTask(final Task task, final String classPattern, 
+      final String methodPattern, final int count, final long intervalMs, final String express) {
+    taskExecutor.executeCustomTask(task, new Runnable() {
+      @Override
+      public void run() {
+        try {
+          StringBuilder result = new StringBuilder();
+          result.append("Method watch task started\n");
+          result.append("Watching: ").append(classPattern).append(".").append(methodPattern)
+              .append(" for ").append(count).append(" times\n\n");
+
+          for (int i = 1; i <= count; i++) {
+            if (Thread.currentThread().isInterrupted()) {
+              throw new InterruptedException("Task cancelled");
+            }
+
+            result.append("--- Watch #").append(i).append(" ---\n");
+
+            // Call Arthas watch tool
+            ObjectNode args = mapper.createObjectNode();
+            args.put("classPattern", classPattern);
+            args.put("methodPattern", methodPattern);
+            args.put("express", express);
+            args.put("condition", "");
+            args.put("b", false);
+            args.put("e", false);
+            args.put("s", true);
+            args.put("n", 1);
+
+            try {
+              JsonNode mcpResult = mcpClient.callTool("watch", args)
+                  .get(30, TimeUnit.SECONDS);
+
+              if (mcpResult.has("content") && mcpResult.get("content").isArray()) {
+                for (JsonNode content : mcpResult.get("content")) {
+                  if (content.has("type") && "text".equals(content.get("type").asText())) {
+                    result.append(content.get("text").asText()).append("\n");
+                  }
+                }
+              }
+            } catch (Exception e) {
+              result.append("Error: ").append(e.getMessage()).append("\n");
+            }
+
+            if (i < count) {
+              result.append("\nWaiting ").append(intervalMs / 1000)
+                  .append(" seconds for next watch...\n\n");
+              Thread.sleep(intervalMs);
+            }
+          }
+
+          result.append("\n--- Task completed ---\n");
+          task.setResult(result.toString());
+        } catch (InterruptedException e) {
+          Thread.currentThread().interrupt();
+        } catch (Exception e) {
+          task.setErrorMessage("Task failed: " + e.getMessage());
+          log.error("Watch method task failed", e);
+        }
+      }
+    });
   }
 
   /**
