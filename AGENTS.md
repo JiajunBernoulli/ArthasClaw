@@ -60,3 +60,43 @@ Use the following prefixes with a colon, followed by a lowercase description:
 - Use environment variables for sensitive configuration
 - Add sensitive files to `.gitignore`
 - Review commits before pushing to ensure no credentials are exposed
+
+## Code Quality Guidelines
+
+**IMPORTANT**: All code changes must adhere to the following quality standards.
+
+### Code Style
+
+- Follow [Google Java Style Guide](https://google.github.io/styleguide/javaguide.html)
+- Use 2-space indentation
+- Max line length: 100 characters
+- Use meaningful variable and method names
+- Avoid unnecessary comments; prefer self-documenting code
+
+### Java 8 Compatibility
+
+**IMPORTANT**: The project must remain compatible with Java 8.
+
+- Do NOT use Java 9+ features:
+  - No `var` keyword (Java 10+)
+  - No `List.of()`, `Set.of()`, `Map.of()` (Java 9+) - use `Collections.unmodifiableList()` instead
+  - No `Optional.ifPresentOrElse()` (Java 9+) - use traditional `if-else` pattern
+  - No `String.lines()` (Java 11+)
+  - No private methods in interfaces (Java 9+)
+  - No module system (JPMS)
+- Use `Files.write()` instead of `Files.writeString()` (Java 11+)
+- Always test with Java 8 before submitting changes
+
+### Test Coverage
+
+**IMPORTANT**: All new code changes require adequate test coverage.
+
+- Minimum 30% line coverage for changed code
+- Write unit tests for:
+  - New classes and methods
+  - Bug fixes (regression tests)
+  - Complex business logic
+- Use JUnit 4.x (compatible with Java 8)
+- Use Mockito 4.x for mocking (last Java 8 compatible version)
+- Run tests before committing: `mvn test`
+- Coverage reports are generated during CI pipeline
