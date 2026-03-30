@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -57,7 +58,7 @@ class SkillManagerTest {
                 "This is a test prompt for the skill.";
         
         Path skillFile = tempDir.resolve("test-skill.md");
-        Files.writeString(skillFile, skillContent);
+        Files.write(skillFile, skillContent.getBytes(StandardCharsets.UTF_8));
 
         // Install the skill
         Skill skill = skillManager.install(skillFile.toString());
@@ -78,7 +79,7 @@ class SkillManagerTest {
         String skillContent = "This is a simple prompt without metadata.";
         
         Path skillFile = tempDir.resolve("simple-skill.md");
-        Files.writeString(skillFile, skillContent);
+        Files.write(skillFile, skillContent.getBytes(StandardCharsets.UTF_8));
 
         Skill skill = skillManager.install(skillFile.toString());
 
@@ -94,8 +95,8 @@ class SkillManagerTest {
         String skill1 = "---\nname: skill-one\ndescription: First skill\n---\nPrompt 1";
         String skill2 = "---\nname: skill-two\ndescription: Second skill\n---\nPrompt 2";
 
-        Files.writeString(tempDir.resolve("skill1.md"), skill1);
-        Files.writeString(tempDir.resolve("skill2.md"), skill2);
+        Files.write(tempDir.resolve("skill1.md"), skill1.getBytes(StandardCharsets.UTF_8));
+        Files.write(tempDir.resolve("skill2.md"), skill2.getBytes(StandardCharsets.UTF_8));
 
         skillManager.install(tempDir.resolve("skill1.md").toString());
         skillManager.install(tempDir.resolve("skill2.md").toString());
@@ -108,7 +109,7 @@ class SkillManagerTest {
     void testRemoveSkill() throws IOException {
         String skillContent = "---\nname: removable-skill\ndescription: To be removed\n---\nPrompt";
         Path skillFile = tempDir.resolve("removable.md");
-        Files.writeString(skillFile, skillContent);
+        Files.write(skillFile, skillContent.getBytes(StandardCharsets.UTF_8));
 
         skillManager.install(skillFile.toString());
         assertTrue(skillManager.get("removable-skill").isPresent());
@@ -122,8 +123,8 @@ class SkillManagerTest {
         String skill1 = "---\nname: prompt-one\n---\nFirst prompt content.";
         String skill2 = "---\nname: prompt-two\n---\nSecond prompt content.";
 
-        Files.writeString(tempDir.resolve("p1.md"), skill1);
-        Files.writeString(tempDir.resolve("p2.md"), skill2);
+        Files.write(tempDir.resolve("p1.md"), skill1.getBytes(StandardCharsets.UTF_8));
+        Files.write(tempDir.resolve("p2.md"), skill2.getBytes(StandardCharsets.UTF_8));
 
         skillManager.install(tempDir.resolve("p1.md").toString());
         skillManager.install(tempDir.resolve("p2.md").toString());
@@ -138,7 +139,7 @@ class SkillManagerTest {
     @Test
     void testGetAllTools() throws IOException {
         String skill1 = "---\nname: tool-skill\ntools:\n  - thread\n  - dashboard\n---\nPrompt";
-        Files.writeString(tempDir.resolve("tool.md"), skill1);
+        Files.write(tempDir.resolve("tool.md"), skill1.getBytes(StandardCharsets.UTF_8));
         skillManager.install(tempDir.resolve("tool.md").toString());
 
         List<String> tools = skillManager.getAllTools();
@@ -168,7 +169,7 @@ class SkillManagerTest {
                 "3. Use `stack` for detailed analysis";
 
         Path skillFile = tempDir.resolve("deadlock-analyzer.md");
-        Files.writeString(skillFile, skillContent);
+        Files.write(skillFile, skillContent.getBytes(StandardCharsets.UTF_8));
 
         Skill skill = skillManager.install(skillFile.toString());
 
@@ -189,7 +190,7 @@ class SkillManagerTest {
                 "This prompt should be loaded lazily.";
         
         Path skillFile = skillsDir.resolve("lazy-skill.md");
-        Files.writeString(skillFile, skillContent);
+        Files.write(skillFile, skillContent.getBytes(StandardCharsets.UTF_8));
 
         // Create new SkillManager to trigger lazy loading
         SkillManager lazyManager = new SkillManager(skillsDir.toString());
