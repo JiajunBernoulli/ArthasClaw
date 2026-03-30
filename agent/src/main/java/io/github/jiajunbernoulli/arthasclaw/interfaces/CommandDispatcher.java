@@ -29,6 +29,7 @@ import io.github.jiajunbernoulli.arthasclaw.interfaces.DisplayHelper;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.Optional;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -224,10 +225,12 @@ public class CommandDispatcher {
       return;
     }
 
-    skillManager.get(name).ifPresentOrElse(
-        DisplayHelper::printSkillDetails,
-        () -> DisplayHelper.printError("[-] Skill not found: " + name)
-    );
+    Optional<Skill> skill = skillManager.get(name);
+    if (skill.isPresent()) {
+      DisplayHelper.printSkillDetails(skill.get());
+    } else {
+      DisplayHelper.printError("[-] Skill not found: " + name);
+    }
   }
 
   private void removeSkill(String name) {
