@@ -8,7 +8,7 @@ QUESTION="${1:-What methods does MathGame have?}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 MATH_DIR="$SCRIPT_DIR/examples/math"
 AGENT_DIR="$SCRIPT_DIR/agent"
-JAR_NAME="arthas-claw-0.0.8-jar-with-dependencies.jar"
+JAR_NAME="arthas-claw-0.0.9-jar-with-dependencies.jar"
 LOG_FILE="/tmp/arthasclaw_test.log"
 RESULT_FILE="/tmp/arthasclaw_result.txt"
 
