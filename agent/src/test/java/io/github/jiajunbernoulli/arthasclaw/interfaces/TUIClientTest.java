@@ -18,16 +18,16 @@ package io.github.jiajunbernoulli.arthasclaw.interfaces;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.github.jiajunbernoulli.arthasclaw.domain.CompletionProvider;
+import io.github.jiajunbernoulli.arthasclaw.infrastructure.mcp.McpClient;
+import io.github.jiajunbernoulli.arthasclaw.interfaces.CommandDispatcher.InputMode;
+import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import io.github.jiajunbernoulli.arthasclaw.domain.CompletionProvider;
-import io.github.jiajunbernoulli.arthasclaw.infrastructure.mcp.McpClient;
-
-import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -94,6 +94,35 @@ class TUIClientTest {
 
         // Create TUIClient with mock provider and stub mcpClient
         tuiClient = new TUIClient(mockProvider, stubMcpClient);
+    }
+
+    // ==================== Mode Switching ====================
+
+    @Test
+    @DisplayName("$ - should enter Arthas mode")
+    void testEnterArthasMode() {
+        tuiClient.processCommand("$");
+        // After entering Arthas mode, "thread" should be treated as Arthas command
+        assertDoesNotThrow(() -> tuiClient.processCommand("thread"));
+    }
+
+    @Test
+    @DisplayName("! - should enter Shell mode")
+    void testEnterShellMode() {
+        tuiClient.processCommand("!");
+        // After entering Shell mode, "ls" should be treated as shell command
+        assertDoesNotThrow(() -> tuiClient.processCommand("ls"));
+    }
+
+    @Test
+    @DisplayName("/back - should exit special mode and return to default")
+    void testExitSpecialModeWithBack() {
+        // Enter Arthas mode
+        tuiClient.processCommand("$");
+        // Exit with /back
+        tuiClient.processCommand("/back");
+        // Now "thread" should be treated as natural language
+        assertDoesNotThrow(() -> tuiClient.processCommand("thread"));
     }
 
     // ==================== System Commands (/) ====================
@@ -176,26 +205,27 @@ class TUIClientTest {
     // ==================== Shell Commands (!) ====================
 
     @Test
-    @DisplayName("!echo - should execute shell echo command")
+    @DisplayName("!echo - should execute shell echo command (prefix mode)")
     void testShellEchoCommand() {
         assertDoesNotThrow(() -> tuiClient.processCommand("!echo hello"));
     }
 
     @Test
-    @DisplayName("!ls - should execute ls command")
+    @DisplayName("!ls - should execute ls command (prefix mode)")
     void testShellLsCommand() {
         assertDoesNotThrow(() -> tuiClient.processCommand("!ls"));
     }
 
     @Test
-    @DisplayName("!pwd - should execute pwd command")
+    @DisplayName("!pwd - should execute pwd command (prefix mode)")
     void testShellPwdCommand() {
         assertDoesNotThrow(() -> tuiClient.processCommand("!pwd"));
     }
 
     @Test
-    @DisplayName("! - empty shell command should show error")
+    @DisplayName("! - empty shell command should enter shell mode")
     void testEmptyShellCommand() {
+        // "!" alone should enter shell mode (no error)
         assertDoesNotThrow(() -> tuiClient.processCommand("!"));
     }
 
@@ -208,26 +238,27 @@ class TUIClientTest {
     // ==================== Arthas Commands ($) ====================
 
     @Test
-    @DisplayName("$thread - should attempt to call Arthas thread command")
+    @DisplayName("$thread - should attempt to call Arthas thread command (prefix mode)")
     void testArthasThreadCommand() {
         // This should not throw any exception
         assertDoesNotThrow(() -> tuiClient.processCommand("$thread"));
     }
 
     @Test
-    @DisplayName("$dashboard - should attempt to call Arthas dashboard command")
+    @DisplayName("$dashboard - should attempt to call Arthas dashboard command (prefix mode)")
     void testArthasDashboardCommand() {
         assertDoesNotThrow(() -> tuiClient.processCommand("$dashboard"));
     }
 
     @Test
-    @DisplayName("$ - empty Arthas command should show error")
+    @DisplayName("$ - empty Arthas command should enter Arthas mode")
     void testEmptyArthasCommand() {
+        // "$" alone should enter Arthas mode (no error)
         assertDoesNotThrow(() -> tuiClient.processCommand("$"));
     }
 
     @Test
-    @DisplayName("$jad MathGame - should handle jad command with argument")
+    @DisplayName("$jad MathGame - should handle jad command with argument (prefix mode)")
     void testArthasJadCommand() {
         assertDoesNotThrow(() -> tuiClient.processCommand("$jad MathGame"));
     }
@@ -276,13 +307,13 @@ class TUIClientTest {
     }
 
     @Test
-    @DisplayName("Command routing - should correctly identify shell command")
+    @DisplayName("Command routing - should correctly identify shell command (prefix)")
     void testCommandRoutingShell() {
         assertDoesNotThrow(() -> tuiClient.processCommand("!ls"));
     }
 
     @Test
-    @DisplayName("Command routing - should correctly identify Arthas command")
+    @DisplayName("Command routing - should correctly identify Arthas command (prefix)")
     void testCommandRoutingArthas() {
         assertDoesNotThrow(() -> tuiClient.processCommand("$thread"));
     }
@@ -297,5 +328,45 @@ class TUIClientTest {
                 .thenReturn(mockResponse);
 
         assertDoesNotThrow(() -> tuiClient.processCommand("This is a natural language query"));
+    }
+
+    // ==================== Mode-based Command Handling ====================
+
+    @Test
+    @DisplayName("In Arthas mode - commands should execute directly without $ prefix")
+    void testArthasModeDirectCommands() {
+        // Enter Arthas mode
+        tuiClient.processCommand("$");
+        // Execute thread command directly
+        assertDoesNotThrow(() -> tuiClient.processCommand("thread"));
+        // Execute dashboard command directly
+        assertDoesNotThrow(() -> tuiClient.processCommand("dashboard"));
+    }
+
+    @Test
+    @DisplayName("In Shell mode - commands should execute directly without ! prefix")
+    void testShellModeDirectCommands() {
+        // Enter Shell mode
+        tuiClient.processCommand("!");
+        // Execute ls command directly
+        assertDoesNotThrow(() -> tuiClient.processCommand("ls"));
+        // Execute pwd command directly
+        assertDoesNotThrow(() -> tuiClient.processCommand("pwd"));
+    }
+
+    @Test
+    @DisplayName("System commands should work in all modes")
+    void testSystemCommandsInAllModes() {
+        // Test in default mode
+        assertDoesNotThrow(() -> tuiClient.processCommand("/help"));
+        
+        // Enter Arthas mode
+        tuiClient.processCommand("$");
+        assertDoesNotThrow(() -> tuiClient.processCommand("/help"));
+        
+        // Exit and enter Shell mode
+        tuiClient.processCommand("/back");
+        tuiClient.processCommand("!");
+        assertDoesNotThrow(() -> tuiClient.processCommand("/help"));
     }
 }

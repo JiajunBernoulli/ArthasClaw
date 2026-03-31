@@ -28,7 +28,7 @@ import io.github.jiajunbernoulli.arthasclaw.infrastructure.config.Config;
 import io.github.jiajunbernoulli.arthasclaw.infrastructure.llm.OpenAICompletionProvider;
 import io.github.jiajunbernoulli.arthasclaw.infrastructure.mcp.McpClient;
 import io.github.jiajunbernoulli.arthasclaw.infrastructure.memory.MemoryManager;
-import io.github.jiajunbernoulli.arthasclaw.interfaces.DisplayHelper;
+import io.github.jiajunbernoulli.arthasclaw.interfaces.CommandDispatcher.InputMode;
 import io.github.jiajunbernoulli.arthasclaw.interfaces.bootstrap.BotArthas;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -191,7 +191,8 @@ public class TUIClient {
 
     while (dispatcher.isRunning()) {
       try {
-        String prompt = "\n" + DisplayHelper.CYAN + "arthasclaw> " + DisplayHelper.RESET;
+        // Get prompt based on current mode
+        String prompt = DisplayHelper.getPrompt(dispatcher.getCurrentMode());
         String input;
 
         if (lineReader != null) {
@@ -203,19 +204,28 @@ public class TUIClient {
           input = reader.readLine();
         }
 
-        if (input == null || input.trim().isEmpty()) {
+        if (input == null) {
+          // Handle EOF (Ctrl+D)
+          break;
+        }
+
+        if (input.trim().isEmpty()) {
           continue;
         }
 
-        // Add to JLine history if available
-        if (lineReader != null) {
+        // Add to JLine history if available (only for non-empty, non-mode-switch commands)
+        if (lineReader != null && !input.equals("$") && !input.equals("!")) {
           lineReader.getHistory().add(input.trim());
         }
 
-        dispatcher.processCommand(input.trim());
+        // Process command and check for mode switch
+        CommandDispatcher.ProcessResult result = dispatcher.processCommand(input.trim());
 
       } catch (IOException e) {
         DisplayHelper.printError("[-] IO Error: " + e.getMessage());
+      } catch (org.jline.reader.EndOfFileException e) {
+        // Ctrl+D was pressed
+        break;
       } catch (Exception e) {
         DisplayHelper.printError("[-] Error: " + e.getMessage());
       }
@@ -223,6 +233,8 @@ public class TUIClient {
 
     cleanup();
   }
+
+
 
   /**
    * Initialize ArthasClaw directories in ~/.arthasclaw

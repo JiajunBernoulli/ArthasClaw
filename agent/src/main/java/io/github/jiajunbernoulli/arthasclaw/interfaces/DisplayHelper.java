@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import io.github.jiajunbernoulli.arthasclaw.domain.skill.Skill;
 import io.github.jiajunbernoulli.arthasclaw.infrastructure.config.Config;
+import io.github.jiajunbernoulli.arthasclaw.interfaces.CommandDispatcher.InputMode;
 import java.util.List;
 
 /**
@@ -35,6 +36,8 @@ public class DisplayHelper {
   public static final String BLUE = "\u001B[34m";
   public static final String CYAN = "\u001B[36m";
   public static final String RED = "\u001B[31m";
+  public static final String MAGENTA = "\u001B[35m";
+  public static final String BOLD = "\u001B[1m";
 
   // Directory paths
   public static final String HOME_DIR = System.getProperty("user.home");
@@ -56,22 +59,69 @@ public class DisplayHelper {
     System.out.println(GREEN + "╚══════════════════════════════════════════════════════════╝" 
         + RESET);
     System.out.println();
-    System.out.println("Command modes:");
+    System.out.println("Input modes:");
     System.out.println(
-        "  " + YELLOW + "<natural lang>" + RESET 
-        + "  - AI-powered diagnosis (default)");
+        "  " + CYAN + "<natural lang>" + RESET 
+        + "  - AI-powered diagnosis (default mode)");
     System.out.println(
-        "  " + YELLOW + "!<command>" + RESET 
-        + "     - Execute shell command (e.g., !ls -la)");
+        "  " + YELLOW + "$" + RESET 
+        + "              - Enter Arthas command mode (ESC to exit)");
     System.out.println(
-        "  " + YELLOW + "$<command>" + RESET 
-        + "     - Execute Arthas command (e.g., $thread)");
+        "  " + YELLOW + "!" + RESET 
+        + "              - Enter Shell command mode (ESC to exit)");
     System.out.println(
         "  " + YELLOW + "/<command>" + RESET 
-        + "     - System commands (e.g., /help, /quit, /skill)");
+        + "     - System commands (/help, /quit, /skill, etc.)");
     System.out.println();
+    System.out.println(
+        "Tip: In Arthas/Shell mode, type commands directly. Type /back to return.");
     System.out.println("Config: ~/.arthasclaw/config.yaml");
     System.out.println();
+  }
+
+  /**
+   * Print mode entry header.
+   *
+   * @param modeName mode name (e.g., "Arthas", "Shell")
+   * @param prefix mode prefix character
+   */
+  public static void printModeHeader(String modeName, String prefix) {
+    System.out.println();
+    System.out.println(MAGENTA + "═══════════════════════════════════════════════" + RESET);
+    System.out.println(MAGENTA + "  " + BOLD + modeName + " Mode" + RESET);
+    System.out.println(
+        MAGENTA + "  " + RESET + "Type commands, type " + YELLOW + "/back" + RESET + " to exit");
+    System.out.println(MAGENTA + "═══════════════════════════════════════════════" + RESET);
+    System.out.println();
+  }
+
+  /**
+   * Print mode exit message.
+   *
+   * @param modeName mode name being exited
+   */
+  public static void printModeExit(String modeName) {
+    System.out.println();
+    System.out.println(CYAN + "[*] Exited " + modeName + " mode, back to default" + RESET);
+    System.out.println();
+  }
+
+  /**
+   * Get prompt string for the given mode.
+   *
+   * @param mode current input mode
+   * @return formatted prompt string
+   */
+  public static String getPrompt(InputMode mode) {
+    switch (mode) {
+      case ARTHAS:
+        return "\n" + MAGENTA + BOLD + "arthas> " + RESET;
+      case SHELL:
+        return "\n" + YELLOW + BOLD + "shell> " + RESET;
+      case DEFAULT:
+      default:
+        return "\n" + CYAN + "arthasclaw> " + RESET;
+    }
   }
 
   /**
@@ -83,7 +133,29 @@ public class DisplayHelper {
     System.out.println(CYAN + "                      Help                               " + RESET);
     System.out.println(CYAN + "══════════════════════════════════════════════════════════" + RESET);
     System.out.println();
-    System.out.println("[System Commands] /<command>");
+    System.out.println("[Mode Switching]");
+    System.out.println("  " + YELLOW + "$" + RESET + "              Enter Arthas command mode");
+    System.out.println("  " + YELLOW + "!" + RESET + "              Enter Shell command mode");
+    System.out.println(
+        "  " + YELLOW + "/back" + RESET + "            Exit mode, return to default");
+    System.out.println();
+    System.out.println("[Default Mode] Natural language queries");
+    System.out.println("  What methods does MathGame have?");
+    System.out.println("  Check for thread deadlock");
+    System.out.println("  Analyze memory usage");
+    System.out.println();
+    System.out.println("[Arthas Mode] ($ to enter, /back to exit)");
+    System.out.println("  thread           View thread info");
+    System.out.println("  dashboard        View dashboard");
+    System.out.println("  jad <class>      Decompile class");
+    System.out.println("  watch <class> <method>  Watch method calls");
+    System.out.println();
+    System.out.println("[Shell Mode] (! to enter, /back to exit)");
+    System.out.println("  ls -la           List files in current directory");
+    System.out.println("  ps aux | grep java  Find Java processes");
+    System.out.println("  jstat -gc <pid>  View GC statistics");
+    System.out.println();
+    System.out.println("[System Commands] /<command> (available in all modes)");
     System.out.println("  /help, /h, /?     Show this help");
     System.out.println("  /quit, /exit, /q  Exit the program");
     System.out.println("  /clear            Clear conversation history");
@@ -97,22 +169,6 @@ public class DisplayHelper {
     System.out.println("  /skill list               List installed skills");
     System.out.println("  /skill show <name>        Show skill details");
     System.out.println("  /skill remove <name>      Remove a skill");
-    System.out.println();
-    System.out.println("[Shell Commands] !<command>");
-    System.out.println("  !ls -la           List files in current directory");
-    System.out.println("  !ps aux | grep java  Find Java processes");
-    System.out.println("  !jstat -gc <pid>  View GC statistics");
-    System.out.println();
-    System.out.println("[Arthas Commands] $<command>");
-    System.out.println("  $thread           View thread info");
-    System.out.println("  $dashboard        View dashboard");
-    System.out.println("  $jad <class>      Decompile class");
-    System.out.println("  $watch <class> <method>  Watch method calls");
-    System.out.println();
-    System.out.println("[Natural Language] Just type your question");
-    System.out.println("  What methods does MathGame have?");
-    System.out.println("  Check for thread deadlock");
-    System.out.println("  Analyze memory usage");
     System.out.println();
     System.out.println("[Configuration] Edit ~/.arthasclaw/config.yaml");
     System.out.println("  agent.max_iterations     - Max agent loop iterations");
