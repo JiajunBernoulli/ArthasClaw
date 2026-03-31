@@ -36,13 +36,26 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Dispatches and handles user commands in the TUI.
- * Supports four command modes:
- * - Default: Natural language query (handled by AI)
- * - ! prefix: Execute shell command
- * - $ prefix: Execute Arthas command via MCP
- * - / prefix: System commands (quit, help, skill, etc.)
+ * 
+ * <p>Supports three input modes:
+ * <ul>
+ *   <li>DEFAULT: Natural language query (handled by AI)</li>
+ *   <li>ARTHAS: Execute Arthas commands via MCP (enter with '$', exit with ESC)</li>
+ *   <li>SHELL: Execute shell commands (enter with '!', exit with ESC)</li>
+ * </ul>
+ * 
+ * <p>System commands (/) are available in all modes.
  */
 public class CommandDispatcher {
+
+  /**
+   * Input mode enumeration.
+   */
+  public enum InputMode {
+    DEFAULT,
+    ARTHAS,
+    SHELL
+  }
 
   private final LoopAgent loopAgent;
   private final McpClient mcpClient;
@@ -51,6 +64,7 @@ public class CommandDispatcher {
   private final ObjectMapper mapper;
   private ArrayNode toolsConfig;
   private boolean running = true;
+  private InputMode currentMode = InputMode.DEFAULT;
 
   /**
    * Constructs a CommandDispatcher with the given dependencies.
@@ -78,18 +92,105 @@ public class CommandDispatcher {
   }
 
   /**
-   * Process a user command.
+   * Get current input mode.
    */
-  public void processCommand(String input) {
-    if (input.startsWith("/")) {
-      handleSystemCommand(input.substring(1));
-    } else if (input.startsWith("!")) {
-      handleShellCommand(input.substring(1));
-    } else if (input.startsWith("$")) {
-      handleArthasCommand(input.substring(1));
-    } else {
-      handleNaturalLanguage(input);
+  public InputMode getCurrentMode() {
+    return currentMode;
+  }
+
+  /**
+   * Set input mode.
+   */
+  public void setMode(InputMode mode) {
+    this.currentMode = mode;
+  }
+
+  /**
+   * Check if in default mode.
+   */
+  public boolean isDefaultMode() {
+    return currentMode == InputMode.DEFAULT;
+  }
+
+  /**
+   * Process a user command.
+   * 
+   * @param input user input string
+   * @return true if the command was processed and should continue reading input,
+   *         false if the input was a mode switch signal (caller should handle)
+   */
+  public ProcessResult processCommand(String input) {
+    // Handle mode entry from default mode
+    if (currentMode == InputMode.DEFAULT) {
+      if (input.equals("$")) {
+        enterArthasMode();
+        return ProcessResult.modeSwitched(InputMode.ARTHAS);
+      } else if (input.equals("!")) {
+        enterShellMode();
+        return ProcessResult.modeSwitched(InputMode.SHELL);
+      }
     }
+
+    // System commands (/) are available in all modes
+    if (input.startsWith("/")) {
+      // Special handling for /back to exit special modes
+      String cmd = input.substring(1).toLowerCase();
+      if (cmd.equals("back") && currentMode != InputMode.DEFAULT) {
+        exitSpecialMode();
+        return ProcessResult.modeSwitched(InputMode.DEFAULT);
+      }
+      handleSystemCommand(cmd);
+      return ProcessResult.continueReading();
+    }
+
+    // Handle input based on current mode
+    switch (currentMode) {
+      case ARTHAS:
+        handleArthasCommand(input);
+        break;
+      case SHELL:
+        handleShellCommand(input);
+        break;
+      case DEFAULT:
+      default:
+        // In default mode, check for prefix-based shortcuts
+        if (input.startsWith("!")) {
+          handleShellCommand(input.substring(1));
+        } else if (input.startsWith("$")) {
+          handleArthasCommand(input.substring(1));
+        } else {
+          handleNaturalLanguage(input);
+        }
+        break;
+    }
+
+    return ProcessResult.continueReading();
+  }
+
+
+
+  /**
+   * Enter Arthas command mode.
+   */
+  private void enterArthasMode() {
+    currentMode = InputMode.ARTHAS;
+    DisplayHelper.printModeHeader("Arthas", "$");
+  }
+
+  /**
+   * Enter Shell command mode.
+   */
+  private void enterShellMode() {
+    currentMode = InputMode.SHELL;
+    DisplayHelper.printModeHeader("Shell", "!");
+  }
+
+  /**
+   * Exit special mode and return to default.
+   */
+  private void exitSpecialMode() {
+    DisplayHelper.printModeExit(currentMode.name());
+    currentMode = InputMode.DEFAULT;
   }
 
   /**
@@ -312,6 +413,10 @@ public class CommandDispatcher {
 
   private void handleShellCommand(String cmd) {
     if (cmd.isEmpty()) {
+      // In shell mode, empty command just shows prompt again
+      if (currentMode == InputMode.SHELL) {
+        return;
+      }
       DisplayHelper.printError("[-] Please enter a shell command to execute");
       return;
     }
@@ -348,6 +453,10 @@ public class CommandDispatcher {
 
   private void handleArthasCommand(String cmd) {
     if (cmd.isEmpty()) {
+      // In arthas mode, empty command just shows prompt again
+      if (currentMode == InputMode.ARTHAS) {
+        return;
+      }
       DisplayHelper.printError("[-] Please enter an Arthas command to execute");
       return;
     }
@@ -372,7 +481,7 @@ public class CommandDispatcher {
         }
       }
 
-      // Try to call via MCP - use the command as tool name
+      // Call via MCP with blocking wait (the fix for the blocking issue)
       JsonNode mcpResult = mcpClient.callTool(command, arguments).get(
           config.getAgent().getToolCallTimeoutSeconds(), TimeUnit.SECONDS);
 
@@ -383,9 +492,7 @@ public class CommandDispatcher {
       DisplayHelper.printSuccess("[+] Arthas command completed");
 
     } catch (Exception e) {
-      // If direct tool call fails, try using AI to interpret
-      DisplayHelper.printWarning("[-] Direct execution failed, trying via AI...");
-      handleNaturalLanguage("Execute Arthas command: " + cmd);
+      DisplayHelper.printError("[-] Arthas command failed: " + e.getMessage());
     }
   }
 
@@ -412,5 +519,38 @@ public class CommandDispatcher {
     }
     // Delegate to LoopAgent for processing
     loopAgent.processQuery(input);
+  }
+
+  /**
+   * Result of processing a command.
+   */
+  public static class ProcessResult {
+    private final boolean continueReading;
+    private final InputMode newMode;
+
+    private ProcessResult(boolean continueReading, InputMode newMode) {
+      this.continueReading = continueReading;
+      this.newMode = newMode;
+    }
+
+    public static ProcessResult continueReading() {
+      return new ProcessResult(true, null);
+    }
+
+    public static ProcessResult modeSwitched(InputMode newMode) {
+      return new ProcessResult(true, newMode);
+    }
+
+    public boolean shouldContinueReading() {
+      return continueReading;
+    }
+
+    public boolean isModeSwitch() {
+      return newMode != null;
+    }
+
+    public InputMode getNewMode() {
+      return newMode;
+    }
   }
 }
