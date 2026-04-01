@@ -84,7 +84,7 @@ arthasclaw> What methods does MathGame have?
 ```
 
 
-## Skill Management
+## ⚠️ Skill Management (Experimental)
 
 Skills are reusable prompt templates that enhance AI's capabilities for specific diagnostic tasks. You can install, list, enable, disable, and remove skills.
 
@@ -152,7 +152,7 @@ Skills are stored in `~/.arthasclaw/skills/` directory. You can also install ski
 arthasclaw> /skill install https://raw.githubusercontent.com/JiajunBernoulli/ArthasClaw/main/skills/deadlock-analyzer.md
 ```
 
-## Task Management
+## ⚠️ Task Management (Experimental)
 
 ArthasClaw supports asynchronous task management for long-running diagnostic operations. This allows you to run tasks like "watch a method 10 times" in the background while continuing to interact with the system.
 
