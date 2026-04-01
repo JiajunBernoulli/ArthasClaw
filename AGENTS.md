@@ -12,11 +12,14 @@
 
 ## Summary
 
-Our 3 classes play the role of MCP Client:
+Our core classes play the role of MCP Client:
 
 - **BotArthas**: Responsible for "ignition" - injecting Arthas into the target process.
 - **McpClient**: Responsible for "connection" - connecting to the HTTP interface exposed by Arthas in the target process.
-- **LoopAgent**: Responsible for "thinking" - converting your natural language into tool calls to Arthas.
+- **LoopAgent**: Responsible for "orchestration" - coordinating the AI assistant workflow.
+- **McpToolHandler**: Responsible for "tool discovery" - fetching and configuring MCP tools.
+- **ChatResponseHandler**: Responsible for "thinking" - processing LLM responses and managing tool calls.
+- **TaskCommandHandler**: Responsible for "task management" - handling async task operations.
 
 This is the charm of MCP (Model Context Protocol) - we don't need to re-implement diagnostic tools, we just need to connect to existing powerful tools (Arthas) through standard protocols.
 

@@ -270,44 +270,11 @@ public class CommandDispatcher {
   // ==================== Task Commands ====================
 
   private void listTasks() {
-    TaskManager taskManager = loopAgent.getTaskManager();
-    if (taskManager.getTaskCount() == 0) {
-      System.out.println("📋 No tasks found");
-      return;
-    }
-
-    System.out.println("📋 Task List:");
-    System.out.println("-----------------------------------------------------------------------");
-    System.out.println("Task ID      | Description              | Status    | Updated At");
-    System.out.println("-----------------------------------------------------------------------");
-
-    for (Task task : taskManager.getAllTasks()) {
-      String status = task.getStatus().toString();
-      String updatedAt = task.getUpdatedAt().toString().substring(0, 19);
-      String description = task.getDescription();
-      if (description.length() > 25) {
-        description = description.substring(0, 22) + "...";
-      }
-      System.out.printf("%-12s | %-25s | %-9s | %s%n",
-          task.getId(), description, status, updatedAt);
-    }
-
-    System.out.println("-----------------------------------------------------------------------");
+    loopAgent.getTaskCommandHandler().listTasks();
   }
 
   private void cancelTask(String taskId) {
-    if (taskId.isEmpty()) {
-      DisplayHelper.printError("[-] Usage: /stop <taskId>");
-      return;
-    }
-
-    TaskManager taskManager = loopAgent.getTaskManager();
-    boolean cancelled = taskManager.cancelTask(taskId);
-    if (cancelled) {
-      DisplayHelper.printSuccess("[+] Task cancelled: " + taskId);
-    } else {
-      DisplayHelper.printError("[-] Task not found or cannot be cancelled: " + taskId);
-    }
+    loopAgent.getTaskCommandHandler().cancelTask(taskId);
   }
 
   // ==================== Skill Commands ====================

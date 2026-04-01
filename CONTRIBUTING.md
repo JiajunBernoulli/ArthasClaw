@@ -23,8 +23,11 @@ io.github.jiajunbernoulli.arthasclaw/
 │       └── BotArthas.java      - Arthas attachment bootstrap
 │
 ├── application/            # Application Layer (Use Cases)
-│   ├── LoopAgent.java          - AI agent orchestration
-│   └── SessionContext.java     - Session and request tracking
+│   ├── LoopAgent.java          - AI agent orchestration and coordination
+│   ├── SessionContext.java     - Session and request tracking
+│   ├── McpToolHandler.java     - MCP tool discovery and management
+│   ├── ChatResponseHandler.java- LLM response and tool call processing
+│   └── TaskCommandHandler.java - Task-related command handling
 │
 ├── domain/                 # Domain Layer (Core Business Logic)
 │   ├── CompletionProvider.java - LLM interface (port)
