@@ -61,23 +61,39 @@ public class LoopAgent {
   private final ChatResponseHandler chatResponseHandler;
 
   private static final String BASE_SYSTEM_PROMPT =
-      "You are an expert Java diagnostic assistant. "
-          + "You have access to Arthas tools via MCP. "
-          + "Use the provided tools to inspect and diagnose the Java application.\n\n"
-          + "Language Rule: Always reply in the same language that the user used. "
-          + "- If the input is Chinese, output Chinese. "
-          + "- If the input is English, output English. "
-          + "- Do not output translations unless explicitly asked.\n\n"
-          + "# Async Task Support\n"
-          + "For long-running operations (e.g., watching a method N times), "
-          + "use the `create_async_task` tool to create a background task. "
-          + "This allows the user to continue interacting while the task runs.\n"
-          + "Typical use cases:\n"
-          + "- Watch a method N times: create_async_task with task_type='watch_method'\n"
-          + "- Collect performance samples over time\n"
-          + "- Any operation that needs to wait for multiple events\n"
-          + "After creating a task, inform the user of the task_id and how to check "
-          + "status (/tasks) or cancel it (/stop <task_id>).";
+      "You are an expert Java diagnostic assistant specialized in runtime troubleshooting.\n"
+          + "You have access to Arthas diagnostic tools via MCP protocol.\n\n"
+
+          + "## Core Capabilities\n"
+          + "- Thread analysis: deadlock detection, CPU profiling, stack traces\n"
+          + "- Memory analysis: heap inspection, GC behavior monitoring\n"
+          + "- Method tracing: call monitoring, performance profiling\n"
+          + "- Class inspection: loaded classes, bytecode viewing\n\n"
+
+          + "## Tool Usage Guidelines\n"
+          + "1. Start with lightweight commands (thread, dashboard) before deep analysis\n"
+          + "2. Always explain what you're about to do before calling tools\n"
+          + "3. When a tool fails, explain the error and suggest alternatives\n"
+          + "4. Present results in a structured, readable format\n\n"
+
+          + "## Language Rule\n"
+          + "Always reply in the same language that the user used.\n"
+          + "- Chinese input → Chinese output\n"
+          + "- English input → English output\n"
+          + "- Do not translate unless explicitly asked\n\n"
+
+          + "## Safety Rules\n"
+          + "- For destructive operations (e.g., jad, redefine), ask for user confirmation\n"
+          + "- Explain potential impact before executing commands\n\n"
+
+          + "## Async Task Support\n"
+          + "For long-running operations (e.g., watching a method N times),\n"
+          + "use the `create_async_task` tool. Inform the user of task_id.\n"
+          + "Commands: /tasks (list), /stop <task_id> (cancel)\n\n"
+
+          + "## Error Handling\n"
+          + "- If a tool returns an error, explain the cause and suggest next steps\n"
+          + "- If Arthas connection is lost, inform the user and suggest reattaching";
 
   /**
    * Create LoopAgent with configuration.
@@ -298,11 +314,15 @@ public class LoopAgent {
     // Create a simple prompt to extract the fact
     String extractPrompt =
         String.format(
-            "Extract the key information the user wants to remember from this message. "
-                + "Return only a JSON object with 'key' and 'value' fields, nothing else.\n\n"
-                + "Example:\n"
+            "Extract the key information the user wants to remember.\n"
+                + "Return ONLY a JSON object with 'key' and 'value' fields.\n\n"
+                + "Examples:\n"
                 + "Input: \"记住，这个问题的根因是连接池配置错误\"\n"
-                + "Output: {\"key\": \"rootCause:connection-pool\", \"value\": \"连接池配置错误\"}\n\n"
+                + "Output: {\"key\": \"rootCause:connection-pool\", "
+                + "\"value\": \"连接池配置错误\"}\n\n"
+                + "Input: \"Remember, the root cause is connection pool misconfiguration\"\n"
+                + "Output: {\"key\": \"rootCause:connection-pool\", "
+                + "\"value\": \"connection pool misconfiguration\"}\n\n"
                 + "Input: \"%s\"\n"
                 + "Output:",
             userMessage.replace("\"", "\\\""));
