@@ -18,7 +18,7 @@ package io.github.jiajunbernoulli.arthasclaw.interfaces;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import io.github.jiajunbernoulli.arthasclaw.domain.CompletionProvider;
+import io.github.jiajunbernoulli.arthasclaw.domain.Provider;
 import io.github.jiajunbernoulli.arthasclaw.infrastructure.mcp.McpClient;
 import io.github.jiajunbernoulli.arthasclaw.interfaces.CommandDispatcher.InputMode;
 import java.util.concurrent.CompletableFuture;
@@ -40,7 +40,7 @@ import static org.mockito.Mockito.*;
 class TUIClientTest {
 
     @Mock
-    private CompletionProvider mockProvider;
+    private Provider mockProvider;
 
     private TUIClient tuiClient;
     private ObjectMapper mapper;

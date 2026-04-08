@@ -22,23 +22,23 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import io.github.jiajunbernoulli.arthasclaw.domain.CompletionProvider;
+import io.github.jiajunbernoulli.arthasclaw.domain.Provider;
 
 import java.io.IOException;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Unit tests for CompletionProvider interface using LocalMockProvider.
+ * Unit tests for Provider interface using MockProvider.
  */
-class CompletionProviderTest {
+class ProviderTest {
 
-    private CompletionProvider provider;
+    private Provider provider;
     private ObjectMapper mapper;
 
     @BeforeEach
     void setUp() {
-        provider = new LocalMockProvider();
+        provider = new MockProvider();
         mapper = new ObjectMapper();
     }
 

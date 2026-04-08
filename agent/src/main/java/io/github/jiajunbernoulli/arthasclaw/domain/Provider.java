@@ -24,7 +24,7 @@ import java.io.IOException;
  * AI Completion Provider interface for different LLM backends.
  * This is a domain service interface - implementations are in infrastructure layer.
  */
-public interface CompletionProvider {
+public interface Provider {
 
   /**
    * Send a chat completion request.

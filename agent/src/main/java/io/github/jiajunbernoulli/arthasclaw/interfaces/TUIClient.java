@@ -22,10 +22,10 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.github.jiajunbernoulli.arthasclaw.application.LoopAgent;
 import io.github.jiajunbernoulli.arthasclaw.application.SessionContext;
-import io.github.jiajunbernoulli.arthasclaw.domain.CompletionProvider;
+import io.github.jiajunbernoulli.arthasclaw.domain.Provider;
 import io.github.jiajunbernoulli.arthasclaw.domain.skill.SkillManager;
 import io.github.jiajunbernoulli.arthasclaw.infrastructure.config.Config;
-import io.github.jiajunbernoulli.arthasclaw.infrastructure.llm.OpenAICompletionProvider;
+import io.github.jiajunbernoulli.arthasclaw.infrastructure.llm.OpenAIProvider;
 import io.github.jiajunbernoulli.arthasclaw.infrastructure.mcp.McpClient;
 import io.github.jiajunbernoulli.arthasclaw.infrastructure.memory.MemoryManager;
 import io.github.jiajunbernoulli.arthasclaw.interfaces.CommandDispatcher.InputMode;
@@ -52,7 +52,7 @@ public class TUIClient {
   private static final Logger log = LoggerFactory.getLogger(TUIClient.class);
   private static final String ARTHASCLAW_DIR = System.getProperty("user.home") + "/.arthasclaw";
   
-  private final CompletionProvider provider;
+  private final Provider provider;
   private final McpClient mcpClient;
   private final LoopAgent loopAgent;
   private final SkillManager skillManager;
@@ -108,7 +108,7 @@ public class TUIClient {
       System.out.println("=================================================\n");
 
       // 6. Create provider and start TUI
-      CompletionProvider provider = new OpenAICompletionProvider(config.getLlm());
+      Provider provider = new OpenAIProvider(config.getLlm());
       TUIClient tui = new TUIClient(provider, mcpClient, config);
       tui.start();
 
@@ -126,7 +126,7 @@ public class TUIClient {
    * @param mcpClient MCP client
    * @param config configuration
    */
-  public TUIClient(CompletionProvider provider, McpClient mcpClient, Config config) {
+  public TUIClient(Provider provider, McpClient mcpClient, Config config) {
     this.provider = provider;
     this.mcpClient = mcpClient;
     this.config = config;
@@ -166,7 +166,7 @@ public class TUIClient {
   /**
    * Legacy constructor for backward compatibility.
    */
-  public TUIClient(CompletionProvider provider, McpClient mcpClient) {
+  public TUIClient(Provider provider, McpClient mcpClient) {
     this(provider, mcpClient, new Config());
   }
 

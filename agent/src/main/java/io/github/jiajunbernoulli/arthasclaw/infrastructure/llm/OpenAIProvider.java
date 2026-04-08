@@ -20,7 +20,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import io.github.jiajunbernoulli.arthasclaw.domain.CompletionProvider;
+import io.github.jiajunbernoulli.arthasclaw.domain.Provider;
 import io.github.jiajunbernoulli.arthasclaw.infrastructure.config.Config;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -33,7 +33,7 @@ import okhttp3.Response;
 /**
  * OpenAI API compatible completion provider.
  */
-public class OpenAICompletionProvider implements CompletionProvider {
+public class OpenAIProvider implements Provider {
 
   private final String apiKey;
   private final String model;
@@ -50,7 +50,7 @@ public class OpenAICompletionProvider implements CompletionProvider {
    *
    * @param config LLM configuration
    */
-  public OpenAICompletionProvider(Config.LlmConfig config) {
+  public OpenAIProvider(Config.LlmConfig config) {
     this.apiKey = config.getApiKey();
     this.model = config.getModel() != null ? config.getModel() : "gpt-4o-mini";
     this.timeoutSeconds = config.getTimeoutSeconds();
@@ -80,7 +80,7 @@ public class OpenAICompletionProvider implements CompletionProvider {
    * @param model   model name
    * @param baseUrl base URL
    */
-  public OpenAICompletionProvider(String apiKey, String model, String baseUrl) {
+  public OpenAIProvider(String apiKey, String model, String baseUrl) {
     this.apiKey = apiKey;
     this.model = model != null ? model : "gpt-4o-mini";
     this.timeoutSeconds = 60;

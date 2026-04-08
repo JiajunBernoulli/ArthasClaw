@@ -20,7 +20,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import io.github.jiajunbernoulli.arthasclaw.domain.CompletionProvider;
+import io.github.jiajunbernoulli.arthasclaw.domain.Provider;
 import io.github.jiajunbernoulli.arthasclaw.domain.task.TaskExecutor;
 import io.github.jiajunbernoulli.arthasclaw.domain.task.TaskManager;
 import io.github.jiajunbernoulli.arthasclaw.infrastructure.config.Config;
@@ -44,7 +44,7 @@ import org.slf4j.LoggerFactory;
 public class LoopAgent {
   private static final Logger log = LoggerFactory.getLogger(LoopAgent.class);
 
-  private final CompletionProvider provider;
+  private final Provider provider;
   private final ObjectMapper mapper = new ObjectMapper();
   private final McpClient mcpClient;
   private final ArrayNode messages;
@@ -102,7 +102,7 @@ public class LoopAgent {
    * @param mcpClient MCP client
    * @param config configuration
    */
-  public LoopAgent(CompletionProvider provider, McpClient mcpClient, Config config) {
+  public LoopAgent(Provider provider, McpClient mcpClient, Config config) {
     this.provider = provider;
     this.mcpClient = mcpClient;
     this.messages = mapper.createArrayNode();
@@ -129,7 +129,7 @@ public class LoopAgent {
    * @param provider completion provider
    * @param mcpClient MCP client
    */
-  public LoopAgent(CompletionProvider provider, McpClient mcpClient) {
+  public LoopAgent(Provider provider, McpClient mcpClient) {
     this(provider, mcpClient, new Config());
   }
 

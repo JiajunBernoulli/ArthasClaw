@@ -30,7 +30,7 @@ io.github.jiajunbernoulli.arthasclaw/
 │   └── TaskCommandHandler.java - Task-related command handling
 │
 ├── domain/                 # Domain Layer (Core Business Logic)
-│   ├── CompletionProvider.java - LLM interface (port)
+│   ├── Provider.java - LLM interface (port)
 │   ├── skill/
 │   │   ├── Skill.java          - Skill entity
 │   │   ├── SkillManager.java   - Skill lifecycle management
@@ -48,8 +48,8 @@ io.github.jiajunbernoulli.arthasclaw/
     ├── memory/
     │   └── MemoryManager.java  - Session persistence
     └── llm/
-        ├── OpenAICompletionProvider.java
-        └── LocalMockProvider.java
+        ├── OpenAIProvider.java
+        └── MockProvider
 ```
 
 ### Layer Responsibilities

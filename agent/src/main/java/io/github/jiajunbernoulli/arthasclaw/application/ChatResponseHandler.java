@@ -20,7 +20,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import io.github.jiajunbernoulli.arthasclaw.domain.CompletionProvider;
+import io.github.jiajunbernoulli.arthasclaw.domain.Provider;
 import io.github.jiajunbernoulli.arthasclaw.infrastructure.config.Config;
 import io.github.jiajunbernoulli.arthasclaw.infrastructure.mcp.McpClient;
 import io.github.jiajunbernoulli.arthasclaw.infrastructure.memory.MemoryManager;
@@ -43,7 +43,7 @@ import org.slf4j.LoggerFactory;
 public class ChatResponseHandler {
   private static final Logger log = LoggerFactory.getLogger(ChatResponseHandler.class);
 
-  private final CompletionProvider provider;
+  private final Provider provider;
   private final McpClient mcpClient;
   private final ObjectMapper mapper;
   private final TaskCommandHandler taskCommandHandler;
@@ -94,7 +94,7 @@ public class ChatResponseHandler {
    * @param config configuration
    */
   public ChatResponseHandler(
-      CompletionProvider provider,
+      Provider provider,
       McpClient mcpClient,
       ObjectMapper mapper,
       TaskCommandHandler taskCommandHandler,

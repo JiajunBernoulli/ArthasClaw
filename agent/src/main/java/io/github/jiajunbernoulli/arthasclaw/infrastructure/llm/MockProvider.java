@@ -20,13 +20,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import io.github.jiajunbernoulli.arthasclaw.domain.CompletionProvider;
+import io.github.jiajunbernoulli.arthasclaw.domain.Provider;
 import java.io.IOException;
 
 /**
  * Local mock provider for testing without external API calls.
  */
-public class LocalMockProvider implements CompletionProvider {
+public class MockProvider implements Provider {
 
   private final ObjectMapper mapper = new ObjectMapper();
 
@@ -47,7 +47,7 @@ public class LocalMockProvider implements CompletionProvider {
 
     // Simple mock response
     String mockContent = "[Mock] I received your message: \"" + userMessage + "\". "
-        + "This is a local mock response. Use OpenAICompletionProvider for real AI responses.";
+        + "This is a local mock response. Use OpenAIProvider for real AI responses.";
     response.put("content", mockContent);
 
     String truncatedMessage = userMessage.substring(0, Math.min(50, userMessage.length()));
