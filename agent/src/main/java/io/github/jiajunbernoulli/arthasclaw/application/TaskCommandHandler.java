@@ -159,9 +159,11 @@ public class TaskCommandHandler {
             + "Target: %s.%s\n"
             + "Count: %d times\n"
             + "Interval: %dms\n\n"
-            + "Use /tasks to check status or /stop %s to cancel.",
+            + "The task is running in background. "
+            + "Use get_task_result tool with task_id=\"%s\" to check status.\n"
+            + "Or use /tasks to list tasks or /stop %s to cancel.",
             task.getId(), description, taskType, classPattern, methodPattern, count, intervalMs, 
-            task.getId());
+            task.getId(), task.getId());
       } else {
         return "Error: Unknown task type: " + taskType;
       }
@@ -300,5 +302,59 @@ public class TaskCommandHandler {
       return description;
     }
     return description.substring(0, maxLength - 3) + "...";
+  }
+
+  /**
+   * Handle get_task_result tool call.
+   * Returns task status and result if available.
+   *
+   * @param arguments tool arguments (must contain task_id)
+   * @return task status and result
+   */
+  public String handleGetTaskResult(ObjectNode arguments) {
+    try {
+      String taskId = arguments.has("task_id") 
+          ? arguments.get("task_id").asText() : null;
+      
+      if (taskId == null || taskId.isEmpty()) {
+        return "Error: task_id is required";
+      }
+
+      Task task = taskManager.getTask(taskId);
+      if (task == null) {
+        return "Error: Task not found: " + taskId;
+      }
+
+      StringBuilder result = new StringBuilder();
+      result.append("Task ID: ").append(task.getId()).append("\n");
+      result.append("Description: ").append(task.getDescription()).append("\n");
+      result.append("Status: ").append(task.getStatus()).append("\n");
+      result.append("Created: ").append(task.getCreatedAt()).append("\n");
+      result.append("Updated: ").append(task.getUpdatedAt()).append("\n");
+
+      if (task.getStatus() == Task.Status.COMPLETED) {
+        String taskResult = task.getResult();
+        if (taskResult != null && !taskResult.isEmpty()) {
+          result.append("\n--- Task Result ---\n");
+          result.append(taskResult);
+        } else {
+          result.append("\nResult: Task completed but no result available\n");
+        }
+      } else if (task.getStatus() == Task.Status.FAILED) {
+        String errorMsg = task.getErrorMessage();
+        result.append("\nError: ").append(errorMsg != null ? errorMsg : "Unknown error");
+      } else if (task.getStatus() == Task.Status.RUNNING) {
+        result.append("\nTask is still running. Use get_task_result again later to check status.");
+      } else if (task.getStatus() == Task.Status.CANCELLED) {
+        result.append("\nTask was cancelled.");
+      } else if (task.getStatus() == Task.Status.PENDING) {
+        result.append("\nTask is pending execution.");
+      }
+
+      return result.toString();
+    } catch (Exception e) {
+      log.error("Failed to get task result", e);
+      return "Error getting task result: " + e.getMessage();
+    }
   }
 }
