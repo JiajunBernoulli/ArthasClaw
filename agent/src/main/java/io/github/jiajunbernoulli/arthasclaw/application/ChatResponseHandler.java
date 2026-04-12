@@ -182,6 +182,18 @@ public class ChatResponseHandler {
               continue;
             }
 
+            // Handle built-in get_task_result tool
+            if ("get_task_result".equals(functionName)) {
+              toolResultStr = taskCommandHandler.handleGetTaskResult(arguments);
+              ObjectNode toolMsg = mapper.createObjectNode();
+              toolMsg.put("role", "tool");
+              toolMsg.put("tool_call_id", toolCallId);
+              toolMsg.put("name", functionName);
+              toolMsg.put("content", toolResultStr);
+              messages.add(toolMsg);
+              continue;
+            }
+
             // Execute via MCP with timing
             long toolStartTime = System.currentTimeMillis();
             try {

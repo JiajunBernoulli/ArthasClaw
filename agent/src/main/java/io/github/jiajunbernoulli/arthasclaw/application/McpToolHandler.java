@@ -233,5 +233,37 @@ public class McpToolHandler {
     asyncTaskTool.set("function", function);
 
     toolsArray.add(asyncTaskTool);
+
+    // get_task_result tool for retrieving async task results
+    ObjectNode getTaskResultTool = mapper.createObjectNode();
+    getTaskResultTool.put("type", "function");
+
+    ObjectNode getTaskFunction = mapper.createObjectNode();
+    getTaskFunction.put("name", "get_task_result");
+    getTaskFunction.put(
+        "description",
+        "Get the status and result of an async task. "
+            + "Use this to check if a task is completed and retrieve its result. "
+            + "If the task is still running, call this again later.");
+
+    ObjectNode getTaskParams = mapper.createObjectNode();
+    getTaskParams.put("type", "object");
+
+    ObjectNode getTaskProperties = mapper.createObjectNode();
+    ObjectNode taskIdProp = mapper.createObjectNode();
+    taskIdProp.put("type", "string");
+    taskIdProp.put("description", "The ID of the task to query (e.g., 'task_abc123')");
+    getTaskProperties.set("task_id", taskIdProp);
+
+    getTaskParams.set("properties", getTaskProperties);
+
+    ArrayNode getTaskRequired = mapper.createArrayNode();
+    getTaskRequired.add("task_id");
+    getTaskParams.set("required", getTaskRequired);
+
+    getTaskFunction.set("parameters", getTaskParams);
+    getTaskResultTool.set("function", getTaskFunction);
+
+    toolsArray.add(getTaskResultTool);
   }
 }
