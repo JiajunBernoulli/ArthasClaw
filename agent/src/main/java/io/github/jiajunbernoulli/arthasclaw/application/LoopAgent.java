@@ -88,7 +88,13 @@ public class LoopAgent {
 
           + "## Async Task Support\n"
           + "For long-running operations (e.g., watching a method N times),\n"
-          + "use the `create_async_task` tool. Inform the user of task_id.\n"
+          + "use the `create_async_task` tool. IMPORTANT workflow:\n"
+          + "1. Call create_async_task with appropriate parameters\n"
+          + "2. Note the task_id from the response\n"
+          + "3. IMMEDIATELY call get_task_result with the task_id to check status\n"
+          + "4. If task is still RUNNING, wait and call get_task_result again\n"
+          + "5. When task is COMPLETED, present the result to user\n"
+          + "DO NOT try other approaches after creating async task.\n"
           + "Commands: /tasks (list), /stop <task_id> (cancel)\n\n"
 
           + "## Error Handling\n"
