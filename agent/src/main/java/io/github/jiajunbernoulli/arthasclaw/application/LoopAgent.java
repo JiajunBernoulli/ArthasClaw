@@ -21,8 +21,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.github.jiajunbernoulli.arthasclaw.domain.Provider;
-import io.github.jiajunbernoulli.arthasclaw.domain.task.TaskExecutor;
-import io.github.jiajunbernoulli.arthasclaw.domain.task.TaskManager;
 import io.github.jiajunbernoulli.arthasclaw.infrastructure.config.Config;
 import io.github.jiajunbernoulli.arthasclaw.infrastructure.mcp.McpClient;
 import io.github.jiajunbernoulli.arthasclaw.infrastructure.memory.MemoryManager;
@@ -38,7 +36,6 @@ import org.slf4j.LoggerFactory;
  * <ul>
  *   <li>{@link McpToolHandler} - for MCP tool management</li>
  *   <li>{@link ChatResponseHandler} - for chat response processing</li>
- *   <li>{@link TaskCommandHandler} - for task-related commands</li>
  * </ul>
  */
 public class LoopAgent {
@@ -54,9 +51,6 @@ public class LoopAgent {
   private MemoryManager memoryManager;
 
   // Handlers
-  private final TaskManager taskManager;
-  private final TaskExecutor taskExecutor;
-  private final TaskCommandHandler taskCommandHandler;
   private final McpToolHandler mcpToolHandler;
   private final ChatResponseHandler chatResponseHandler;
 
@@ -86,11 +80,6 @@ public class LoopAgent {
           + "- For destructive operations (e.g., jad, redefine), ask for user confirmation\n"
           + "- Explain potential impact before executing commands\n\n"
 
-          + "## Async Task Support\n"
-          + "For long-running operations (e.g., watching a method N times),\n"
-          + "use the `create_async_task` tool. Inform the user of task_id.\n"
-          + "Commands: /tasks (list), /stop <task_id> (cancel)\n\n"
-
           + "## Error Handling\n"
           + "- If a tool returns an error, explain the cause and suggest next steps\n"
           + "- If Arthas connection is lost, inform the user and suggest reattaching";
@@ -108,16 +97,11 @@ public class LoopAgent {
     this.messages = mapper.createArrayNode();
     this.skillsPrompt = "";
 
-    // Initialize task components
-    this.taskManager = new TaskManager();
-    this.taskExecutor = new TaskExecutor(mcpClient, taskManager);
-    this.taskCommandHandler = new TaskCommandHandler(taskManager, taskExecutor, mcpClient, mapper);
-
     // Initialize handlers
     this.mcpToolHandler = new McpToolHandler(mcpClient, mapper, config);
     this.chatResponseHandler =
         new ChatResponseHandler(
-            provider, mcpClient, mapper, taskCommandHandler, memoryManager, config);
+            provider, mcpClient, mapper, memoryManager, config);
 
     // System prompt
     updateSystemMessage();
@@ -264,43 +248,7 @@ public class LoopAgent {
    * @param command system command
    */
   private void handleSystemCommand(String command) {
-    String[] parts = command.trim().split("\\s+");
-    String cmd = parts[0].toLowerCase();
-
-    switch (cmd) {
-      case "/tasks":
-        taskCommandHandler.listTasks();
-        break;
-      case "/stop":
-        if (parts.length > 1) {
-          String taskId = parts[1];
-          taskCommandHandler.cancelTask(taskId);
-        } else {
-          System.out.println("❌ Usage: /stop <taskId>");
-        }
-        break;
-      default:
-        System.out.println("❌ Unknown command. Available commands: /tasks, /stop <taskId>");
-        break;
-    }
-  }
-
-  /**
-   * Get task manager instance.
-   *
-   * @return task manager
-   */
-  public TaskManager getTaskManager() {
-    return taskManager;
-  }
-
-  /**
-   * Get task command handler instance.
-   *
-   * @return task command handler
-   */
-  public TaskCommandHandler getTaskCommandHandler() {
-    return taskCommandHandler;
+    System.out.println("Unknown command: " + command);
   }
 
   /**

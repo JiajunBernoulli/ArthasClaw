@@ -23,8 +23,6 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.github.jiajunbernoulli.arthasclaw.application.LoopAgent;
 import io.github.jiajunbernoulli.arthasclaw.domain.skill.Skill;
 import io.github.jiajunbernoulli.arthasclaw.domain.skill.SkillManager;
-import io.github.jiajunbernoulli.arthasclaw.domain.task.Task;
-import io.github.jiajunbernoulli.arthasclaw.domain.task.TaskManager;
 import io.github.jiajunbernoulli.arthasclaw.infrastructure.config.Config;
 import io.github.jiajunbernoulli.arthasclaw.infrastructure.mcp.McpClient;
 import java.io.BufferedReader;
@@ -253,28 +251,10 @@ public class CommandDispatcher {
         handleSkillCommand(args);
         break;
 
-      case "tasks":
-        listTasks();
-        break;
-
-      case "stop":
-        cancelTask(args.trim());
-        break;
-
       default:
         DisplayHelper.printError("[-] Unknown system command: /" + command);
         DisplayHelper.printWarning("    Type /help to see available commands");
     }
-  }
-
-  // ==================== Task Commands ====================
-
-  private void listTasks() {
-    loopAgent.getTaskCommandHandler().listTasks();
-  }
-
-  private void cancelTask(String taskId) {
-    loopAgent.getTaskCommandHandler().cancelTask(taskId);
   }
 
   // ==================== Skill Commands ====================
