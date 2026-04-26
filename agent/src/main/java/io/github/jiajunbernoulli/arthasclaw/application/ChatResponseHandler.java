@@ -46,7 +46,6 @@ public class ChatResponseHandler {
   private final Provider provider;
   private final McpClient mcpClient;
   private final ObjectMapper mapper;
-  private final TaskCommandHandler taskCommandHandler;
   private MemoryManager memoryManager;
 
   // Configuration values
@@ -97,13 +96,11 @@ public class ChatResponseHandler {
       Provider provider,
       McpClient mcpClient,
       ObjectMapper mapper,
-      TaskCommandHandler taskCommandHandler,
       MemoryManager memoryManager,
       Config config) {
     this.provider = provider;
     this.mcpClient = mcpClient;
     this.mapper = mapper;
-    this.taskCommandHandler = taskCommandHandler;
     this.memoryManager = memoryManager;
 
     Config.AgentConfig agentConfig = config.getAgent();
@@ -168,33 +165,9 @@ public class ChatResponseHandler {
 
             ObjectNode arguments = (ObjectNode) mapper.readTree(functionArgsStr);
 
-            // Handle built-in create_async_task tool
+            // Execute via MCP with timing
             String toolResultStr;
             final String toolCallId = toolCall.get("id").asText();
-            if ("create_async_task".equals(functionName)) {
-              toolResultStr = taskCommandHandler.handleCreateAsyncTask(arguments);
-              ObjectNode toolMsg = mapper.createObjectNode();
-              toolMsg.put("role", "tool");
-              toolMsg.put("tool_call_id", toolCallId);
-              toolMsg.put("name", functionName);
-              toolMsg.put("content", toolResultStr);
-              messages.add(toolMsg);
-              continue;
-            }
-
-            // Handle built-in get_task_result tool
-            if ("get_task_result".equals(functionName)) {
-              toolResultStr = taskCommandHandler.handleGetTaskResult(arguments);
-              ObjectNode toolMsg = mapper.createObjectNode();
-              toolMsg.put("role", "tool");
-              toolMsg.put("tool_call_id", toolCallId);
-              toolMsg.put("name", functionName);
-              toolMsg.put("content", toolResultStr);
-              messages.add(toolMsg);
-              continue;
-            }
-
-            // Execute via MCP with timing
             long toolStartTime = System.currentTimeMillis();
             try {
               JsonNode mcpResult =

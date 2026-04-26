@@ -19,7 +19,6 @@ Our core classes play the role of MCP Client:
 - **LoopAgent**: Responsible for "orchestration" - coordinating the AI assistant workflow.
 - **McpToolHandler**: Responsible for "tool discovery" - fetching and configuring MCP tools.
 - **ChatResponseHandler**: Responsible for "thinking" - processing LLM responses and managing tool calls.
-- **TaskCommandHandler**: Responsible for "task management" - handling async task operations.
 
 This is the charm of MCP (Model Context Protocol) - we don't need to re-implement diagnostic tools, we just need to connect to existing powerful tools (Arthas) through standard protocols.
 

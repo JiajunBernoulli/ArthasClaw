@@ -33,7 +33,6 @@ import org.slf4j.LoggerFactory;
  * <ul>
  *   <li>Fetching tools from MCP server</li>
  *   <li>Converting MCP tools to OpenAI-compatible format</li>
- *   <li>Adding built-in tools (e.g., create_async_task)</li>
  * </ul>
  */
 public class McpToolHandler {
@@ -86,9 +85,6 @@ public class McpToolHandler {
         }
         log.info("Successfully loaded {} tools from Arthas", openAiTools.size());
         System.out.println(String.format("[+] Loaded %d tools from Arthas.", openAiTools.size()));
-
-        // Add built-in async task tool
-        addBuiltInTools(openAiTools);
 
         return openAiTools;
       } catch (java.util.concurrent.TimeoutException e) {
@@ -149,121 +145,5 @@ public class McpToolHandler {
     }
     aiTool.set("function", function);
     return aiTool;
-  }
-
-  /**
-   * Add built-in tools to the tools configuration.
-   *
-   * @param toolsArray the tools array to add to
-   */
-  private void addBuiltInTools(ArrayNode toolsArray) {
-    // create_async_task tool for long-running operations
-    ObjectNode asyncTaskTool = mapper.createObjectNode();
-    asyncTaskTool.put("type", "function");
-
-    ObjectNode function = mapper.createObjectNode();
-    function.put("name", "create_async_task");
-    function.put(
-        "description",
-        "Create an async task for long-running operations. "
-            + "Use this when the user wants to monitor/collect data over time "
-            + "(e.g., watch a method N times, collect samples). "
-            + "The task runs in background, user can check status with /tasks "
-            + "or cancel with /stop.");
-
-    ObjectNode params = mapper.createObjectNode();
-    params.put("type", "object");
-
-    // task_type
-    ObjectNode taskType = mapper.createObjectNode();
-    taskType.put("type", "string");
-    ArrayNode enumValues = mapper.createArrayNode();
-    enumValues.add("watch_method");
-    enumValues.add("collect_samples");
-    taskType.set("enum", enumValues);
-    taskType.put("description", "Type: watch_method (monitor calls) or collect_samples");
-
-    ObjectNode properties = mapper.createObjectNode();
-    properties.set("task_type", taskType);
-
-    // description
-    ObjectNode descProp = mapper.createObjectNode();
-    descProp.put("type", "string");
-    descProp.put("description", "Human-readable description of what this task does");
-    properties.set("description", descProp);
-
-    // class_pattern
-    ObjectNode classPattern = mapper.createObjectNode();
-    classPattern.put("type", "string");
-    classPattern.put("description", "Class pattern for watch_method task (e.g. 'MathGame')");
-    properties.set("class_pattern", classPattern);
-
-    // method_pattern
-    ObjectNode methodPattern = mapper.createObjectNode();
-    methodPattern.put("type", "string");
-    methodPattern.put("description", "Method pattern for watch_method task (e.g. 'run')");
-    properties.set("method_pattern", methodPattern);
-
-    // count
-    ObjectNode countProp = mapper.createObjectNode();
-    countProp.put("type", "integer");
-    countProp.put("description", "Number of times to watch/collect (default: 10)");
-    properties.set("count", countProp);
-
-    // interval_ms
-    ObjectNode intervalMs = mapper.createObjectNode();
-    intervalMs.put("type", "integer");
-    intervalMs.put("description", "Interval between watches in ms (default: 1000)");
-    properties.set("interval_ms", intervalMs);
-
-    // express
-    ObjectNode expressProp = mapper.createObjectNode();
-    expressProp.put("type", "string");
-    expressProp.put("description", "Watch expression (default: '{params, returnObj, #cost}')");
-    properties.set("express", expressProp);
-
-    params.set("properties", properties);
-
-    ArrayNode required = mapper.createArrayNode();
-    required.add("task_type");
-    required.add("description");
-    params.set("required", required);
-
-    function.set("parameters", params);
-    asyncTaskTool.set("function", function);
-
-    toolsArray.add(asyncTaskTool);
-
-    // get_task_result tool for retrieving async task results
-    ObjectNode getTaskResultTool = mapper.createObjectNode();
-    getTaskResultTool.put("type", "function");
-
-    ObjectNode getTaskFunction = mapper.createObjectNode();
-    getTaskFunction.put("name", "get_task_result");
-    getTaskFunction.put(
-        "description",
-        "Get the status and result of an async task. "
-            + "Use this to check if a task is completed and retrieve its result. "
-            + "If the task is still running, call this again later.");
-
-    ObjectNode getTaskParams = mapper.createObjectNode();
-    getTaskParams.put("type", "object");
-
-    ObjectNode getTaskProperties = mapper.createObjectNode();
-    ObjectNode taskIdProp = mapper.createObjectNode();
-    taskIdProp.put("type", "string");
-    taskIdProp.put("description", "The ID of the task to query (e.g., 'task_abc123')");
-    getTaskProperties.set("task_id", taskIdProp);
-
-    getTaskParams.set("properties", getTaskProperties);
-
-    ArrayNode getTaskRequired = mapper.createArrayNode();
-    getTaskRequired.add("task_id");
-    getTaskParams.set("required", getTaskRequired);
-
-    getTaskFunction.set("parameters", getTaskParams);
-    getTaskResultTool.set("function", getTaskFunction);
-
-    toolsArray.add(getTaskResultTool);
   }
 }
