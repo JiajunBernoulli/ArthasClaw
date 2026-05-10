@@ -33,7 +33,7 @@ curl -sL https://raw.githubusercontent.com/JiajunBernoulli/ArthasClaw/main/start
 
 ## ⚠️ 技能管理（实验性）
 
-技能（Skill）是可复用的提示词模板，用于增强 AI 在特定诊断场景下的能力。你可以安装、列出、启用、禁用和删除技能。
+技能（Skill）是可复用的提示词模板，用于增强 AI 在特定诊断场景下的能力。你可以安装、列出、查看和删除技能。
 
 ### 技能命令
 
@@ -41,8 +41,6 @@ curl -sL https://raw.githubusercontent.com/JiajunBernoulli/ArthasClaw/main/start
 /skill install <url|path>   从 URL 或本地文件安装技能
 /skill list                 列出已安装的技能
 /skill show <name>          查看技能详情
-/skill enable <name>        启用技能
-/skill disable <name>       禁用技能
 /skill remove <name>        删除技能
 ```
 

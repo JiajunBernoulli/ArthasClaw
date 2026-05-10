@@ -86,7 +86,7 @@ arthasclaw> What methods does MathGame have?
 
 ## ⚠️ Skill Management (Experimental)
 
-Skills are reusable prompt templates that enhance AI's capabilities for specific diagnostic tasks. You can install, list, enable, disable, and remove skills.
+Skills are reusable prompt templates that enhance AI's capabilities for specific diagnostic tasks. You can install, list, show, and remove skills.
 
 ### Skill Commands
 
@@ -94,8 +94,6 @@ Skills are reusable prompt templates that enhance AI's capabilities for specific
 /skill install <url|path>   Install a skill from URL or local file
 /skill list                 List installed skills
 /skill show <name>          Show skill details
-/skill enable <name>        Enable a skill
-/skill disable <name>       Disable a skill
 /skill remove <name>        Remove a skill
 ```
 
