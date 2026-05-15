@@ -16,6 +16,8 @@
 
 package io.github.jiajunbernoulli.arthasclaw.application;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.MDC;
@@ -24,7 +26,7 @@ import org.slf4j.MDC;
  * Manages session and request context for logging and tracing.
  * Uses SLF4J MDC (Mapped Diagnostic Context) to inject IDs into log messages.
  * 
- * <p>Session ID format: sess_xxxxxxxx (8-char prefix of UUID)
+ * <p>Session ID format: sess_yyyyMMdd_HHmmss_xxx (timestamp + 3-char random suffix)
  * Request ID format: req_XXX (3-digit sequential number per session)
  */
 public class SessionContext {
@@ -40,9 +42,11 @@ public class SessionContext {
    * Create a new session context with a generated session ID.
    */
   public SessionContext() {
-    // Generate session ID: sess_ + first 8 chars of UUID
-    String uuid = UUID.randomUUID().toString().replace("-", "");
-    this.sessionId = "sess_" + uuid.substring(0, 8);
+    // Generate session ID: sess_yyyyMMdd_HHmmss_xxx
+    // Format: timestamp + 3-char random suffix for uniqueness
+    String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+    String randomSuffix = UUID.randomUUID().toString().substring(0, 3);
+    this.sessionId = "sess_" + timestamp + "_" + randomSuffix;
     
     // Set in MDC
     MDC.put(SESSION_ID_KEY, sessionId);
@@ -53,7 +57,7 @@ public class SessionContext {
   /**
    * Get the session ID.
    *
-   * @return session ID string (e.g., "sess_a1b2c3d4")
+   * @return session ID string (e.g., "sess_20240115_103045_a1b")
    */
   public String getSessionId() {
     return sessionId;

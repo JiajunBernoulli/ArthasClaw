@@ -97,7 +97,7 @@ public class MemoryManager {
   /**
    * Start a new session.
    *
-   * @param sessionId the session ID (e.g., "sess_a1b2c3d4")
+   * @param sessionId the session ID (e.g., "sess_20240115_103045_a1b")
    */
   public void startSession(String sessionId) {
     this.currentSessionId = sessionId;
