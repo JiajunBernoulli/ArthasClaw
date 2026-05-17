@@ -36,7 +36,7 @@ import org.slf4j.LoggerFactory;
  * <ul>
  *   <li>Processing AI responses in a loop</li>
  *   <li>Managing tool calls and their execution</li>
- *   <li>Handling message history trimming</li>
+ *   <li>Handling message history trimming via ContextWindowManager</li>
  *   <li>Coordinating with MCP client for tool execution</li>
  * </ul>
  */
@@ -47,6 +47,7 @@ public class ChatResponseHandler {
   private final McpClient mcpClient;
   private final ObjectMapper mapper;
   private MemoryManager memoryManager;
+  private final ContextWindowManager contextWindowManager;
 
   // Configuration values
   private final int maxIterations;
@@ -88,7 +89,6 @@ public class ChatResponseHandler {
    * @param provider completion provider
    * @param mcpClient MCP client
    * @param mapper JSON object mapper
-   * @param taskCommandHandler task command handler
    * @param memoryManager memory manager (can be null)
    * @param config configuration
    */
@@ -108,6 +108,10 @@ public class ChatResponseHandler {
     this.maxMessages = agentConfig.getMaxMessages();
     this.maxToolResultLength = agentConfig.getMaxToolResultLength();
     this.toolCallTimeoutSeconds = agentConfig.getToolCallTimeoutSeconds();
+
+    // Initialize context window manager for smart summarization
+    this.contextWindowManager = new ContextWindowManager(
+        provider, mapper, config);
   }
 
   /**
@@ -126,8 +130,8 @@ public class ChatResponseHandler {
       log.debug("Iteration {} started", iteration);
 
       try {
-        // Trim message history to prevent unbounded growth
-        trimMessages(messages);
+        // Manage context window (summarize + trim) before LLM call
+        contextWindowManager.manageContext(messages);
 
         // Call LLM with timing
         long llmStartTime = System.currentTimeMillis();
@@ -296,16 +300,14 @@ public class ChatResponseHandler {
   }
 
   /**
-   * Trim message history to prevent unbounded growth. Keeps system prompt (first message) and
-   * recent messages up to maxMessages.
+   * Trim message history to prevent unbounded growth.
+   * Delegates to ContextWindowManager for smart summarization
+   * and hard trimming.
    *
    * @param messages the messages array to trim
    */
   public void trimMessages(ArrayNode messages) {
-    while (messages.size() > maxMessages && messages.size() > 1) {
-      // Remove oldest non-system message (index 1, since index 0 is system)
-      messages.remove(1);
-    }
+    contextWindowManager.manageContext(messages);
   }
 
   /**

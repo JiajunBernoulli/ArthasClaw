@@ -50,6 +50,8 @@ public class Config {
     private long listToolsTimeoutSeconds = 5;
     private long toolCallTimeoutSeconds = 30;
     private long retryDelayMs = 1000;
+    private int contextSummaryThreshold = 30;
+    private int contextRecentCount = 10;
 
     public int getMaxIterations() {
       return maxIterations;
@@ -105,6 +107,37 @@ public class Config {
 
     public void setRetryDelayMs(long retryDelayMs) {
       this.retryDelayMs = retryDelayMs;
+    }
+
+    /**
+     * Get the message count threshold that triggers context
+     * summarization. When non-system messages exceed this count,
+     * older messages are summarized by the LLM.
+     *
+     * @return the context summary threshold
+     */
+    public int getContextSummaryThreshold() {
+      return contextSummaryThreshold;
+    }
+
+    public void setContextSummaryThreshold(
+        int contextSummaryThreshold) {
+      this.contextSummaryThreshold = contextSummaryThreshold;
+    }
+
+    /**
+     * Get the number of recent messages to preserve when
+     * summarization occurs. These messages are kept as-is
+     * to maintain conversational continuity.
+     *
+     * @return the number of recent messages to keep
+     */
+    public int getContextRecentCount() {
+      return contextRecentCount;
+    }
+
+    public void setContextRecentCount(int contextRecentCount) {
+      this.contextRecentCount = contextRecentCount;
     }
   }
 
@@ -320,7 +353,13 @@ public class Config {
           + "  # Truncate tool results\n");
       sb.append("  list_tools_timeout_seconds: " + agent.listToolsTimeoutSeconds + "\n");
       sb.append("  tool_call_timeout_seconds: " + agent.toolCallTimeoutSeconds + "\n");
-      sb.append("  retry_delay_ms: " + agent.retryDelayMs + "\n\n");
+      sb.append("  retry_delay_ms: " + agent.retryDelayMs + "\n");
+      sb.append("  context_summary_threshold: "
+          + agent.contextSummaryThreshold
+          + "  # Summarize old messages when count exceeds this\n");
+      sb.append("  context_recent_count: "
+          + agent.contextRecentCount
+          + "  # Recent messages to keep after summarization\n\n");
 
       sb.append("# LLM settings\n");
       sb.append("llm:\n");
