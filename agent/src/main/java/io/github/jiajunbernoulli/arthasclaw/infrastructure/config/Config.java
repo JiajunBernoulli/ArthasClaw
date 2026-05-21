@@ -317,12 +317,43 @@ public class Config {
 
     try {
       Config config = mapper.readValue(path.toFile(), Config.class);
+      validate(config);
       System.out.println("[+] Loaded config from: " + configPath);
       return config;
     } catch (IOException e) {
       System.err.println("[-] Failed to load config: " + e.getMessage());
       System.err.println("[*] Using default configuration");
       return new Config();
+    }
+  }
+
+  /**
+   * Validate and fix configuration values to ensure consistency.
+   *
+   * @param config the config to validate
+   */
+  private static void validate(Config config) {
+    AgentConfig agent = config.getAgent();
+    int maxMessages = agent.getMaxMessages();
+    int threshold = agent.getContextSummaryThreshold();
+    int recentCount = agent.getContextRecentCount();
+
+    // Ensure summary threshold > recent count (otherwise no old messages to summarize)
+    if (threshold <= recentCount) {
+      int corrected = recentCount + 1;
+      System.err.println("[!] context_summary_threshold (" + threshold
+          + ") must be > context_recent_count (" + recentCount
+          + "), auto-corrected to " + corrected);
+      agent.setContextSummaryThreshold(corrected);
+    }
+
+    // Ensure recent count < max messages (otherwise hard trim removes recent messages)
+    if (recentCount >= maxMessages) {
+      int corrected = maxMessages / 2;
+      System.err.println("[!] context_recent_count (" + recentCount
+          + ") must be < max_messages (" + maxMessages
+          + "), auto-corrected to " + corrected);
+      agent.setContextRecentCount(corrected);
     }
   }
 

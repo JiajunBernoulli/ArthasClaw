@@ -55,6 +55,8 @@ public class ContextWindowManager {
   private static final String SUMMARY_ROLE = "system";
   private static final String SUMMARY_PREFIX = "[Conversation Summary] ";
 
+  private static final int MAX_SUMMARY_INPUT_CHARS = 12000;
+
   private static final String SUMMARY_PROMPT =
       "You are a conversation summarizer. Summarize the following "
           + "conversation messages into a concise paragraph that captures "
@@ -207,8 +209,18 @@ public class ContextWindowManager {
         content = content.substring(0, 500) + "... [truncated]";
       }
 
-      oldConversation.append(role).append(": ")
-          .append(content).append("\n");
+      // Truncate individual messages to keep summary prompt size bounded
+      if (content.length() > 1000) {
+        content = content.substring(0, 1000) + "... [truncated]";
+      }
+
+      String entry = role + ": " + content + "\n";
+      // Stop appending if we would exceed the max summary input size
+      if (oldConversation.length() + entry.length() > MAX_SUMMARY_INPUT_CHARS) {
+        oldConversation.append("... [additional messages truncated for summary]\n");
+        break;
+      }
+      oldConversation.append(entry);
     }
 
     String conversationText = oldConversation.toString();
@@ -230,15 +242,9 @@ public class ContextWindowManager {
     summaryMsg.put("content", SUMMARY_PREFIX + summary);
 
     // Calculate how many messages to remove
-    // Remove from index 1 up to (oldEnd - 1) inclusive
-    int removeEnd = oldEnd;
-    if (hasPreviousSummary) {
-      removeEnd = oldEnd; // Remove including previous summary
-      // Adjust: remove from index 1
-    }
-
-    // Remove old messages (from index 1 to removeEnd-1)
-    int removeCount = removeEnd - 1;
+    // Remove from index 1 up to (oldEnd - 1) inclusive,
+    // which always includes the previous summary when hasPreviousSummary is true.
+    int removeCount = oldEnd - 1;
     for (int i = 0; i < removeCount; i++) {
       messages.remove(1);
     }
@@ -267,8 +273,15 @@ public class ContextWindowManager {
     summaryMessages.add(promptMsg);
 
     ObjectNode response = provider.chatCompletion(summaryMessages, null);
-    if (response.hasNonNull("content")) {
-      return response.get("content").asText().trim();
+    if (response != null && response.hasNonNull("content")) {
+      String summary = response.get("content").asText().trim();
+      if (!summary.isEmpty()) {
+        return summary;
+      }
+      log.warn("LLM summary response content is empty");
+    } else {
+      log.warn("LLM summary response missing content field (response={})",
+          response == null ? "null" : response.toPrettyString());
     }
     return null;
   }
